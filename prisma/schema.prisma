@@ -1,0 +1,367 @@
+// ==========================================
+// الإعدادات العامة (Configuration)
+// ==========================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// 1. الهوية والأمان (Authentication & Security)
+// ==========================================
+
+model User {
+  id                String  @id @default(cuid())
+  name              String
+  phone             String  @unique
+  password          String
+  isPasswordChanged Boolean @default(false)
+
+  role   Role[] // OWNER, SECRETARY, CAPTAIN
+  status UserStatus @default(ACTIVE)
+
+  // الملفات المهنية (Profiles)
+  captainProfile   Captain?
+  secretaryProfile Secretary?
+
+  // العلاقات
+  ownedAcademies   Academy[]            @relation("AcademyOwners")
+  receivedPayments PaymentTransaction[] @relation("PaymentReceiver")
+  invalidTokens    InvalidToken[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  logoutAt  DateTime?
+  deletedAt DateTime?
+
+  @@index([role])
+}
+
+model InvalidToken {
+  id        String   @id @default(cuid())
+  jti       String   @unique
+  expiresAt DateTime
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([expiresAt])
+}
+
+// ==========================================
+// 2. الأكاديميات (Academies)
+// ==========================================
+
+model Academy {
+  id   String @id @default(cuid())
+  name String
+
+  // الإدارة
+  owners User[] @relation("AcademyOwners")
+
+  // الأصول والعمليات
+  courses       Course[]
+  subscriptions Subscription[]
+  expenses      Expense[]
+  clients       Client[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+// ==========================================
+// 3. الملفات المهنية (Professional Profiles)
+// ==========================================
+
+model Secretary {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  user     User    @relation(fields: [userId], references: [id])
+  isActive Boolean @default(true)
+
+  baseSalary Float
+  bonus      Float
+  target     Int
+
+  registeredClients Client[] @relation("RegisteredBy")
+  processedLessons  Lesson[] @relation("SecretaryLessons")
+
+  @@index([isActive])
+}
+
+model Captain {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  user     User    @relation(fields: [userId], references: [id])
+  isActive Boolean @default(true)
+
+  captainLessonPrice Float
+  trainingType       TrainingSupport @default(BOTH)
+
+  lessons Lesson[] @relation("CaptainLessons")
+  cars    Car[]    @relation("CaptainCars")
+
+  @@index([isActive, trainingType])
+}
+
+// ==========================================
+// 4. الأصول (Fleet & Areas)
+// ==========================================
+
+model Car {
+  id           String @id @default(cuid())
+  plateLetters String // حروف اللوحة (أ ب ج)
+  plateNumbers String // أرقام اللوحة (123)
+  plateNumber  String @unique // دمج الحروف والأرقام
+
+  gearType  Transmission
+  ownerType OwnerType
+
+  // ملكية وتتبع السيارة
+  captainId String? // إذا كانت مملوكة لمدرب
+  captain   Captain? @relation("CaptainCars", fields: [captainId], references: [id])
+
+  carSessionPrice Float   @default(0)
+  isActive        Boolean @default(true)
+
+  lessons   Lesson[]
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([isActive, gearType])
+}
+
+model Area {
+  id          String          @id @default(cuid())
+  name        String
+  supportType TrainingSupport
+  isActive    Boolean         @default(true)
+
+  lessons   Lesson[]
+  deletedAt DateTime?
+
+  @@index([isActive])
+}
+
+// ==========================================
+// 5. العملاء والمالية (Clients & Finance)
+// ==========================================
+
+model Client {
+  id    String @id @default(cuid())
+  name  String
+  phone String
+
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  registeredById String?
+  registeredBy   Secretary? @relation("RegisteredBy", fields: [registeredById], references: [id])
+
+  subscriptions Subscription[]
+  lessons       Lesson[]
+  payments      PaymentTransaction[]
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([name])
+  @@index([phone])
+  @@index([academyId])
+}
+
+model Subscription {
+  id String @id @default(cuid())
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  priceAtBooking   Float // السعر المتفق عليه وقت الاشتراك
+  totalPaid        Float @default(0) // إجمالي المدفوع
+  totalLessons     Int
+  remainingLessons Int
+  lessonDuration   Int // مدة الحصة بالدقائق
+
+  lessons      Lesson[]
+  payments     PaymentTransaction[]
+  cancellation SubscriptionCancellation?
+
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@index([academyId])
+}
+
+model PaymentTransaction {
+  id            String          @id @default(cuid())
+  amount        Float
+  paymentMethod PaymentMethod
+  type          TransactionType @default(PAYMENT)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+
+  lessonId String?
+  lesson   Lesson? @relation(fields: [lessonId], references: [id])
+
+  // الشخص الذي استلم المال (عادة سكرتير أو أدمن)
+  receiverId String
+  receiver   User   @relation("PaymentReceiver", fields: [receiverId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([receiverId])
+  @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+// ==========================================
+// 6. الحصص والكورسات (Lessons & Courses)
+// ==========================================
+
+model Course {
+  id             String @id @default(cuid())
+  name           String
+  price          Float
+  totalLessons   Int
+  lessonDuration Int
+
+  academyId     String
+  academy       Academy        @relation(fields: [academyId], references: [id])
+  subscriptions Subscription[]
+}
+
+model Lesson {
+  id                 String       @id @default(cuid())
+  startTime          DateTime
+  endTime            DateTime
+  status             LessonStatus @default(SCHEDULED)
+  carSessionPrice    Float
+  captainLessonPrice Float
+
+  captainId String
+  captain   Captain @relation("CaptainLessons", fields: [captainId], references: [id])
+
+  carId String
+  car   Car    @relation(fields: [carId], references: [id])
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  areaId String
+  area   Area   @relation(fields: [areaId], references: [id])
+
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+
+  secretaryId String?
+  secretary   Secretary? @relation("SecretaryLessons", fields: [secretaryId], references: [id])
+
+  payments PaymentTransaction[]
+
+  @@index([startTime])
+  @@index([captainId, startTime])
+  @@index([carId, startTime])
+  @@index([status])
+}
+
+model SubscriptionCancellation {
+  id             String       @id @default(cuid())
+  subscriptionId String       @unique
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  reason         CancelReason
+  refundAmount   Float        @default(0)
+  createdAt      DateTime     @default(now())
+}
+
+model Expense {
+  id     String      @id @default(cuid())
+  amount Float
+  type   ExpenseType
+
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([academyId, createdAt])
+}
+
+// ==========================================
+// 7. القوائم (Enums)
+// ==========================================
+
+enum Role {
+  OWNER
+  SECRETARY
+  CAPTAIN
+}
+
+enum Transmission {
+  MANUAL
+  AUTOMATIC
+}
+
+enum TrainingSupport {
+  MANUAL
+  AUTOMATIC
+  BOTH
+}
+
+enum OwnerType {
+  ACADEMY_FLEET
+  INDIVIDUAL_CAPTAIN
+}
+
+enum LessonStatus {
+  SCHEDULED
+  COMPLETE
+  CANCELED
+  NO_SHOW
+}
+
+enum ExpenseType {
+  MARKETING
+  MAINTENANCE
+  UTILITIES
+  RENT
+  GENERAL
+}
+
+enum CancelReason {
+  CHANGE_PROGRAM
+  DOES_NOT_WANT_COURSE
+  CAPTAIN_ISSUE
+  MANAGEMENT_ISSUE
+  ABSENCE_EXCEEDED
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  ELECTRONIC_WALLET
+}
+
+enum TransactionType {
+  PAYMENT
+  REFUND
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
