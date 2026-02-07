@@ -57,8 +57,14 @@ model InvalidToken {
 // ==========================================
 
 model Academy {
-  id   String @id @default(cuid())
-  name String
+  id       String @id @default(cuid())
+  name     String @unique
+  phone    String @unique
+  address  String
+  instaPay String
+
+  // التواصل الاجتماعي
+  socialMediaPlatforms SocialMedia[]
 
   // الإدارة
   owners User[] @relation("AcademyOwners")
@@ -68,10 +74,21 @@ model Academy {
   subscriptions Subscription[]
   expenses      Expense[]
   clients       Client[]
+  payments      PaymentTransaction[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+}
+
+model SocialMedia {
+  id        String   @id @default(cuid())
+  platform  Platform
+  url       String
+  academy   Academy? @relation(fields: [academyId], references: [id])
+  academyId String?
+
+  @@unique([platform, academyId])
 }
 
 // ==========================================
@@ -170,6 +187,7 @@ model Client {
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
+  @@unique([academyId, phone])
   @@index([name])
   @@index([phone])
   @@index([academyId])
@@ -209,6 +227,10 @@ model PaymentTransaction {
   paymentMethod PaymentMethod
   type          TransactionType @default(PAYMENT)
 
+  status PaymentStatus @default(PENDING)
+
+  referenceNumber String? @unique
+
   clientId String
   client   Client @relation(fields: [clientId], references: [id])
 
@@ -218,15 +240,18 @@ model PaymentTransaction {
   lessonId String?
   lesson   Lesson? @relation(fields: [lessonId], references: [id])
 
-  // الشخص الذي استلم المال (عادة سكرتير أو أدمن)
   receiverId String
   receiver   User   @relation("PaymentReceiver", fields: [receiverId], references: [id])
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  academy   Academy? @relation(fields: [academyId], references: [id])
+  academyId String?
 
   @@index([receiverId])
   @@index([subscriptionId])
   @@index([createdAt])
+  @@index([status])
 }
 
 // ==========================================
@@ -364,4 +389,21 @@ enum TransactionType {
 enum UserStatus {
   ACTIVE
   BANNED
+}
+
+enum Platform {
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  YOUTUBE
+  WHATSAPP
+  WEBSITE
+  GMAIL
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+  REFUNDED
 }

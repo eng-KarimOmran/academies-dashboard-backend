@@ -1,5 +1,6 @@
 import z from "zod";
 import {
+  Platform,
   Role,
   TrainingSupport,
   UserStatus,
@@ -39,3 +40,23 @@ export const limit = positiveNumber
   .default(50);
 
 export const trainingSupport = z.enum(TrainingSupport);
+
+export const textAndNum = z
+  .string("الاسم مطلوب")
+  .trim()
+  .min(2, "الاسم يجب أن يكون حرفين على الأقل")
+  .max(50, "الاسم طويل جداً")
+  .regex(
+    /^[\u0621-\u064Aa-zA-Z0-9\s]+$/,
+    "الاسم يجب أن يحتوي على حروف أو أرقام فقط",
+  );
+
+export const address = z
+  .string("العنوان مطلوب")
+  .trim()
+  .min(2, "العنوان يجب أن يكون حرفين على الأقل")
+  .max(100, "العنوان طويل جداً");
+
+export const dateIso = z.iso.datetime();
+
+export const platform = z.enum(Platform);

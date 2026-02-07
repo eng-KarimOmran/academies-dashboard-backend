@@ -9,6 +9,7 @@ import { User } from "../../generated/prisma/client";
 import dayjs from "dayjs";
 import { omitKeys } from "../utils/omitKeys";
 import { USER_SENSITIVE_KEYS } from "../utils/safeKeys";
+import { getCustomPeriod } from "../utils/getCustomPeriod";
 
 export const createUser = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -120,17 +121,28 @@ export const getAllDeleted = async (req: RequestAuth, res: Response) => {
   const { limit, page } = query;
   const skip = (page - 1) * limit;
 
-  const users = await prisma.user.findMany({
-    where: {
-      deletedAt: { not: null },
-    },
-    take: limit,
-    skip,
+  const { users, count } = await prisma.$transaction(async (tx) => {
+    const users = await tx.user.findMany({
+      where: {
+        deletedAt: { not: null },
+      },
+      orderBy: {
+        deletedAt: "desc",
+      },
+      take: limit,
+      skip,
+    });
+
+    const count = await tx.user.count({ where: { deletedAt: { not: null } } });
+
+    return { users, count };
   });
 
-  const usersSafe = users.map((u) => omitKeys<User>(u, USER_SENSITIVE_KEYS));
+  const usersSafe = users.map((user) =>
+    omitKeys<User>(user, USER_SENSITIVE_KEYS),
+  );
 
-  return sendSuccess({ res, data: { items: usersSafe, limit, page } });
+  return sendSuccess({ res, data: { items: usersSafe, count, limit, page } });
 };
 
 export const getAllUser = async (req: RequestAuth, res: Response) => {
@@ -138,18 +150,24 @@ export const getAllUser = async (req: RequestAuth, res: Response) => {
   const { limit, page } = query;
   const skip = (page - 1) * limit;
 
-  const users = await prisma.user.findMany({
-    where: {
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip,
+  const { users, count } = await prisma.$transaction(async (tx) => {
+    const users = await tx.user.findMany({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip,
+    });
+    const count = await tx.user.count({ where: { deletedAt: null } });
+    return { users, count };
   });
 
-  const usersSafe = users.map((u) => omitKeys<User>(u, USER_SENSITIVE_KEYS));
+  const usersSafe = users.map((user) =>
+    omitKeys<User>(user, USER_SENSITIVE_KEYS),
+  );
 
-  return sendSuccess({ res, data: { items: usersSafe, limit, page } });
+  return sendSuccess({ res, data: { items: usersSafe, count, limit, page } });
 };
 
 export const restore = async (req: RequestAuth, res: Response) => {
@@ -173,14 +191,14 @@ export const restore = async (req: RequestAuth, res: Response) => {
 export const getDetailsUser = async (req: RequestAuth, res: Response) => {
   const userLogin = req.user as User;
 
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
+  const { params, query } = req.dataSafe as DTO.GetDetailsDto;
   const { id } = params;
+  const { startDate, endDate } = query;
 
   if (!userLogin.role.includes("OWNER") && id !== userLogin.id)
     throw ApiError.Forbidden();
 
-  const startDate = dayjs().startOf("month");
-  const endDate = dayjs().date(28).endOf("day");
+  const date = getCustomPeriod({ startDate, endDate });
 
   const user = await prisma.user.findUnique({
     where: {
@@ -199,7 +217,7 @@ export const getDetailsUser = async (req: RequestAuth, res: Response) => {
               lessons: {
                 where: {
                   status: { in: ["COMPLETE", "CANCELED"] },
-                  startTime: { gte: startDate.toDate(), lte: endDate.toDate() },
+                  startTime: { gte: date.startDate, lte: date.endDate },
                 },
               },
             },
@@ -216,10 +234,7 @@ export const getDetailsUser = async (req: RequestAuth, res: Response) => {
             select: {
               registeredClients: {
                 where: {
-                  createdAt: {
-                    gte: startDate.toDate(),
-                    lte: endDate.toDate(),
-                  },
+                  createdAt: { gte: date.startDate, lte: date.endDate },
                 },
               },
             },

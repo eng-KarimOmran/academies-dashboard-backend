@@ -10,6 +10,7 @@ import {
   limit,
   positiveNumber,
   trainingSupport,
+  dateIso,
 } from "../utils/common.validation";
 
 export const Create = {
@@ -87,7 +88,7 @@ export const GetAllDeleted = {
 export const GetDetails = {
   params: z.object({ id }),
   query: z.object({
-    page: positiveNumber.optional().default(1),
-    limit: limit,
+    startDate: dateIso,
+    endDate: dateIso,
   }),
 };

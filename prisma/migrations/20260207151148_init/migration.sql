@@ -28,6 +28,12 @@ CREATE TYPE "TransactionType" AS ENUM ('PAYMENT', 'REFUND');
 -- CreateEnum
 CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'BANNED');
 
+-- CreateEnum
+CREATE TYPE "Platform" AS ENUM ('FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'YOUTUBE', 'WHATSAPP', 'WEBSITE', 'GMAIL');
+
+-- CreateEnum
+CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'COMPLETED', 'REJECTED');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -59,6 +65,9 @@ CREATE TABLE "InvalidToken" (
 CREATE TABLE "Academy" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "address" TEXT NOT NULL,
+    "instaPay" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
@@ -67,12 +76,23 @@ CREATE TABLE "Academy" (
 );
 
 -- CreateTable
+CREATE TABLE "SocialMedia" (
+    "id" TEXT NOT NULL,
+    "platform" "Platform" NOT NULL,
+    "url" TEXT NOT NULL,
+    "academyId" TEXT,
+
+    CONSTRAINT "SocialMedia_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Secretary" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "baseSalary" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "bonusPerClient" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "baseSalary" DOUBLE PRECISION NOT NULL,
+    "bonus" DOUBLE PRECISION NOT NULL,
+    "target" INTEGER NOT NULL,
 
     CONSTRAINT "Secretary_pkey" PRIMARY KEY ("id")
 );
@@ -97,7 +117,7 @@ CREATE TABLE "Car" (
     "gearType" "Transmission" NOT NULL,
     "ownerType" "OwnerType" NOT NULL,
     "captainId" TEXT,
-    "basePrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "carSessionPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
@@ -151,11 +171,14 @@ CREATE TABLE "PaymentTransaction" (
     "amount" DOUBLE PRECISION NOT NULL,
     "paymentMethod" "PaymentMethod" NOT NULL,
     "type" "TransactionType" NOT NULL DEFAULT 'PAYMENT',
+    "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
+    "referenceNumber" TEXT,
     "clientId" TEXT NOT NULL,
     "subscriptionId" TEXT NOT NULL,
     "lessonId" TEXT,
     "receiverId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "PaymentTransaction_pkey" PRIMARY KEY ("id")
 );
@@ -175,8 +198,11 @@ CREATE TABLE "Course" (
 -- CreateTable
 CREATE TABLE "Lesson" (
     "id" TEXT NOT NULL,
-    "date" TIMESTAMP(3) NOT NULL,
+    "startTime" TIMESTAMP(3) NOT NULL,
+    "endTime" TIMESTAMP(3) NOT NULL,
     "status" "LessonStatus" NOT NULL DEFAULT 'SCHEDULED',
+    "carSessionPrice" DOUBLE PRECISION NOT NULL,
+    "captainLessonPrice" DOUBLE PRECISION NOT NULL,
     "captainId" TEXT NOT NULL,
     "carId" TEXT NOT NULL,
     "clientId" TEXT NOT NULL,
@@ -230,6 +256,15 @@ CREATE UNIQUE INDEX "InvalidToken_jti_key" ON "InvalidToken"("jti");
 CREATE INDEX "InvalidToken_expiresAt_idx" ON "InvalidToken"("expiresAt");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Academy_name_key" ON "Academy"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Academy_phone_key" ON "Academy"("phone");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SocialMedia_platform_academyId_key" ON "SocialMedia"("platform", "academyId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Secretary_userId_key" ON "Secretary"("userId");
 
 -- CreateIndex
@@ -260,10 +295,16 @@ CREATE INDEX "Client_phone_idx" ON "Client"("phone");
 CREATE INDEX "Client_academyId_idx" ON "Client"("academyId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Client_academyId_phone_key" ON "Client"("academyId", "phone");
+
+-- CreateIndex
 CREATE INDEX "Subscription_clientId_idx" ON "Subscription"("clientId");
 
 -- CreateIndex
 CREATE INDEX "Subscription_academyId_idx" ON "Subscription"("academyId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PaymentTransaction_referenceNumber_key" ON "PaymentTransaction"("referenceNumber");
 
 -- CreateIndex
 CREATE INDEX "PaymentTransaction_receiverId_idx" ON "PaymentTransaction"("receiverId");
@@ -275,13 +316,16 @@ CREATE INDEX "PaymentTransaction_subscriptionId_idx" ON "PaymentTransaction"("su
 CREATE INDEX "PaymentTransaction_createdAt_idx" ON "PaymentTransaction"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "Lesson_date_idx" ON "Lesson"("date");
+CREATE INDEX "PaymentTransaction_status_idx" ON "PaymentTransaction"("status");
 
 -- CreateIndex
-CREATE INDEX "Lesson_captainId_date_idx" ON "Lesson"("captainId", "date");
+CREATE INDEX "Lesson_startTime_idx" ON "Lesson"("startTime");
 
 -- CreateIndex
-CREATE INDEX "Lesson_carId_date_idx" ON "Lesson"("carId", "date");
+CREATE INDEX "Lesson_captainId_startTime_idx" ON "Lesson"("captainId", "startTime");
+
+-- CreateIndex
+CREATE INDEX "Lesson_carId_startTime_idx" ON "Lesson"("carId", "startTime");
 
 -- CreateIndex
 CREATE INDEX "Lesson_status_idx" ON "Lesson"("status");
@@ -297,6 +341,9 @@ CREATE INDEX "_AcademyOwners_B_index" ON "_AcademyOwners"("B");
 
 -- AddForeignKey
 ALTER TABLE "InvalidToken" ADD CONSTRAINT "InvalidToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SocialMedia" ADD CONSTRAINT "SocialMedia_academyId_fkey" FOREIGN KEY ("academyId") REFERENCES "Academy"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Secretary" ADD CONSTRAINT "Secretary_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
