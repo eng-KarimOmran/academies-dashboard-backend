@@ -70,8 +70,4 @@ export const GetAllDeleted = {
 
 export const GetDetails = {
   params: z.object({ id }),
-  query: z.object({
-    startDate: dateIso,
-    endDate: dateIso,
-  }),
 };

@@ -96,10 +96,12 @@ model SocialMedia {
 // ==========================================
 
 model Secretary {
-  id       String  @id @default(cuid())
-  userId   String  @unique
-  user     User    @relation(fields: [userId], references: [id])
-  isActive Boolean @default(true)
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id])
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
 
   baseSalary Float
   bonus      Float
@@ -112,11 +114,12 @@ model Secretary {
 }
 
 model Captain {
-  id       String  @id @default(cuid())
-  userId   String  @unique
-  user     User    @relation(fields: [userId], references: [id])
-  isActive Boolean @default(true)
-
+  id                 String          @id @default(cuid())
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id])
+  isActive           Boolean         @default(true)
+  deletedAt          DateTime?
+  createdAt          DateTime        @default(now())
   captainLessonPrice Float
   trainingType       TrainingSupport @default(BOTH)
 

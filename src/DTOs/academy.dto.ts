@@ -36,6 +36,4 @@ export type RestoreDto = {
 
 export type GetDetailsDto = {
   params: z.infer<typeof GetDetails.params>;
-    query: z.infer<typeof GetDetails.query>;
-
 };

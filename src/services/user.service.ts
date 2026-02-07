@@ -9,12 +9,10 @@ import { User } from "../../generated/prisma/client";
 import dayjs from "dayjs";
 import { omitKeys } from "../utils/omitKeys";
 import { USER_SENSITIVE_KEYS } from "../utils/safeKeys";
-import { getCustomPeriod } from "../utils/getCustomPeriod";
 
 export const createUser = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
-  const { name, phone, password, role, captainProfile, secretaryProfile } =
-    body;
+  const { name, phone, password, role } = body;
 
   const userExists = await prisma.user.findUnique({ where: { phone } });
 
@@ -28,20 +26,6 @@ export const createUser = async (req: RequestAuth, res: Response) => {
       phone,
       role: role,
       password: hashedPassword,
-      ...(captainProfile && {
-        captainProfile: {
-          create: {
-            ...captainProfile,
-          },
-        },
-      }),
-      ...(secretaryProfile && {
-        secretaryProfile: {
-          create: {
-            ...secretaryProfile,
-          },
-        },
-      }),
     },
   });
 
@@ -63,7 +47,7 @@ export const updateUser = async (req: RequestAuth, res: Response) => {
   const data: Partial<User> = {};
 
   const userExists = await prisma.user.findUnique({
-    where: { id , deletedAt:null },
+    where: { id, deletedAt: null },
   });
 
   if (!userExists) throw ApiError.NotFound("المستخدم غير موجود");
@@ -98,21 +82,37 @@ export const updateUser = async (req: RequestAuth, res: Response) => {
 };
 
 export const deleteUser = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.DeleteDto;
-  const { id } = params;
-  const userExists = await prisma.user.findUnique({
+  const { id } = (req.dataSafe as DTO.DeleteDto).params;
+
+  const userExists = await prisma.user.findFirst({
     where: { id, deletedAt: null },
   });
 
-  if (!userExists) throw ApiError.NotFound("المستخدم غير موجود");
+  if (!userExists)
+    throw ApiError.NotFound("المستخدم غير موجود أو محذوف بالفعل");
 
-  const user = await prisma.user.update({
+  const now = dayjs().toDate();
+
+  const userDelete = await prisma.user.update({
     where: { id },
-    data: { deletedAt: dayjs().toDate() },
+    data: {
+      deletedAt: now,
+      captainProfile: {
+        update: {
+          where: { userId: id },
+          data: { deletedAt: now },
+        },
+      },
+      secretaryProfile: {
+        update: {
+          where: { userId: id },
+          data: { deletedAt: now },
+        },
+      },
+    },
   });
 
-  const userSafe = omitKeys<User>(user, USER_SENSITIVE_KEYS);
-
+  const userSafe = omitKeys(userDelete, USER_SENSITIVE_KEYS);
   return sendSuccess({ res, data: userSafe });
 };
 
@@ -173,17 +173,42 @@ export const getAllUser = async (req: RequestAuth, res: Response) => {
 export const restore = async (req: RequestAuth, res: Response) => {
   const { params } = req.dataSafe as DTO.RestoreDto;
   const { id } = params;
-  const user = await prisma.user.findUnique({ where: { id } });
-  if (!user) throw ApiError.NotFound("المستخدم غير موجود");
-
-  if (!user.deletedAt) throw ApiError.BadRequest("المستخدم بالفعل مفعل");
-
-  const restoredUser = await prisma.user.update({
+  const userExists = await prisma.user.findUnique({
     where: { id },
-    data: { deletedAt: null },
   });
 
-  const userSafe = omitKeys(restoredUser, USER_SENSITIVE_KEYS);
+  if (!userExists) throw ApiError.NotFound("المستخدم غير موجود");
+
+  if (!userExists.deletedAt) throw ApiError.BadRequest("المستخدم بالفعل مفعل");
+
+  const userRestore = await prisma.user.update({
+    where: { id },
+    data: {
+      deletedAt: null,
+      captainProfile: {
+        update: {
+          where: {
+            userId: id,
+          },
+          data: {
+            deletedAt: null,
+          },
+        },
+      },
+      secretaryProfile: {
+        update: {
+          where: {
+            userId: id,
+          },
+          data: {
+            deletedAt: null,
+          },
+        },
+      },
+    },
+  });
+
+  const userSafe = omitKeys(userRestore, USER_SENSITIVE_KEYS);
 
   return sendSuccess({ res, data: userSafe });
 };
@@ -191,57 +216,16 @@ export const restore = async (req: RequestAuth, res: Response) => {
 export const getDetailsUser = async (req: RequestAuth, res: Response) => {
   const userLogin = req.user as User;
 
-  const { params, query } = req.dataSafe as DTO.GetDetailsDto;
+  const { params } = req.dataSafe as DTO.GetDetailsDto;
   const { id } = params;
-  const { startDate, endDate } = query;
 
   if (!userLogin.role.includes("OWNER") && id !== userLogin.id)
     throw ApiError.Forbidden();
-
-  const date = getCustomPeriod({ startDate, endDate });
 
   const user = await prisma.user.findUnique({
     where: {
       id,
       deletedAt: null,
-    },
-    include: {
-      captainProfile: {
-        select: {
-          captainLessonPrice: true,
-          trainingType: true,
-          isActive: true,
-          cars: true,
-          _count: {
-            select: {
-              lessons: {
-                where: {
-                  status: { in: ["COMPLETE", "CANCELED"] },
-                  startTime: { gte: date.startDate, lte: date.endDate },
-                },
-              },
-            },
-          },
-        },
-      },
-      secretaryProfile: {
-        select: {
-          baseSalary: true,
-          bonus: true,
-          isActive: true,
-          target: true,
-          _count: {
-            select: {
-              registeredClients: {
-                where: {
-                  createdAt: { gte: date.startDate, lte: date.endDate },
-                },
-              },
-            },
-          },
-        },
-      },
-      ownedAcademies: true,
     },
   });
 

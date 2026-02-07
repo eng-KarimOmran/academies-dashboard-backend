@@ -6,6 +6,7 @@ import { TokenType } from "../utils/Token";
 import { checkPasswordChange } from "../middlewares/checkPasswordChange.middlewares";
 import routerAcademy from "./academy.routes";
 import routerArea from "./area.routes";
+import routerCaptain from "./captain.routes";
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use(checkPasswordChange);
 router.use("/user", routerUser);
 router.use("/academy", routerAcademy);
 router.use("/area", routerArea);
+router.use("/captain", routerCaptain);
 
 export default router;

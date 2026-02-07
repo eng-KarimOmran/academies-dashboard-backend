@@ -9,47 +9,16 @@ import {
   statusUser,
   limit,
   positiveNumber,
-  trainingSupport,
   dateIso,
 } from "../utils/common.validation";
 
 export const Create = {
-  body: z
-    .object({
-      name,
-      phone,
-      password,
-      role: userRole,
-      captainProfile: z
-        .object({
-          captainLessonPrice: positiveNumber,
-          trainingType: trainingSupport,
-        })
-        .optional(),
-      secretaryProfile: z
-        .object({
-          baseSalary: positiveNumber,
-          bonus: positiveNumber,
-          target: positiveNumber,
-        })
-        .optional(),
-    })
-    .check(
-      z.refine(
-        (data) => !(data.role.includes("CAPTAIN") && !data.captainProfile),
-        {
-          message: "لازم تحدد بيانات الكابتن",
-          path: ["captainProfile"],
-        },
-      ),
-      z.refine(
-        (data) => !(data.role.includes("SECRETARY") && !data.secretaryProfile),
-        {
-          message: "لازم تحدد بيانات السكرتير",
-          path: ["secretaryProfile"],
-        },
-      ),
-    ),
+  body: z.object({
+    name,
+    phone,
+    password,
+    role: userRole,
+  }),
 };
 
 export const Update = {
@@ -87,8 +56,4 @@ export const GetAllDeleted = {
 
 export const GetDetails = {
   params: z.object({ id }),
-  query: z.object({
-    startDate: dateIso,
-    endDate: dateIso,
-  }),
 };

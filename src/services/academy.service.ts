@@ -224,11 +224,8 @@ export const restore = async (req: RequestAuth, res: Response) => {
 export const getDetailsAcademy = async (req: RequestAuth, res: Response) => {
   const userLogin = req.user as User;
 
-  const { params, query } = req.dataSafe as DTO.GetDetailsDto;
+  const { params } = req.dataSafe as DTO.GetDetailsDto;
   const { id } = params;
-  const { startDate, endDate } = query;
-
-  const date = getCustomPeriod({ startDate, endDate });
 
   const academyDetails = await prisma.academy.findUnique({
     where: { id, deletedAt: null },
@@ -245,20 +242,6 @@ export const getDetailsAcademy = async (req: RequestAuth, res: Response) => {
           id: true,
           platform: true,
           url: true,
-        },
-      },
-      _count: {
-        select: {
-          clients: {
-            where: {
-              createdAt: { gte: date.startDate, lte: date.endDate },
-            },
-          },
-          subscriptions: {
-            where: {
-              createdAt: { gte: date.startDate, lte: date.endDate },
-            },
-          },
         },
       },
     },
