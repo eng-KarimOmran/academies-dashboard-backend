@@ -1,29 +1,17 @@
 import z from "zod";
 import {
-  address,
-  dateIso,
+  boolean,
   id,
   limit,
-  phone,
-  platform,
   positiveNumber,
-  string,
   textAndNum,
+  trainingSupport,
 } from "../utils/common.validation";
 
 export const Create = {
   body: z.object({
     name: textAndNum,
-    owners: z.array(z.object({ id })),
-    phone,
-    address,
-    instaPay: string,
-    socialMedia: z.array(
-      z.object({
-        platform,
-        url: z.url(),
-      }),
-    ),
+    supportType: trainingSupport,
   }),
 };
 
@@ -31,18 +19,8 @@ export const Update = {
   params: z.object({ id }),
   body: z.object({
     name: textAndNum.optional(),
-    owners: z.array(z.object({ id })).optional(),
-    phone: phone.optional(),
-    address: address.optional(),
-    instaPay: string.optional(),
-    socialMedia: z
-      .array(
-        z.object({
-          platform,
-          url: z.url(),
-        }),
-      )
-      .optional(),
+    supportType: trainingSupport.optional(),
+    isActive: boolean.optional(),
   }),
 };
 
@@ -70,8 +48,4 @@ export const GetAllDeleted = {
 
 export const GetDetails = {
   params: z.object({ id }),
-  query: z.object({
-    startDate: dateIso,
-    endDate: dateIso,
-  }),
 };

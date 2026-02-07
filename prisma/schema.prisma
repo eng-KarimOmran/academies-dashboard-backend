@@ -155,14 +155,16 @@ model Car {
 
 model Area {
   id          String          @id @default(cuid())
-  name        String
+  name        String          @unique
   supportType TrainingSupport
   isActive    Boolean         @default(true)
 
   lessons   Lesson[]
+  createdAt DateTime  @default(now())
   deletedAt DateTime?
 
   @@index([isActive])
+  @@index([supportType])
 }
 
 // ==========================================

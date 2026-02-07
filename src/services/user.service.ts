@@ -63,7 +63,7 @@ export const updateUser = async (req: RequestAuth, res: Response) => {
   const data: Partial<User> = {};
 
   const userExists = await prisma.user.findUnique({
-    where: { id },
+    where: { id , deletedAt:null },
   });
 
   if (!userExists) throw ApiError.NotFound("المستخدم غير موجود");

@@ -56,7 +56,7 @@ export const createAcademy = async (req: RequestAuth, res: Response) => {
     res,
     statusCode: 201,
     data: academy,
-    message: "تم اضافة المستخدم بنجاح",
+    message: "تم اضافة الأكادمية بنجاح",
   });
 };
 
@@ -67,8 +67,8 @@ export const updateAcademy = async (req: RequestAuth, res: Response) => {
 
   const data: any = {};
 
-  const academyExists = await prisma.academy.findFirst({
-    where: { id },
+  const academyExists = await prisma.academy.findUnique({
+    where: { id , deletedAt:null},
     include: {
       owners: true,
     },

@@ -24,7 +24,7 @@ export const password = z
 
 export const userRole = z.array(z.enum(Role));
 
-export const boolean = z.coerce.boolean().optional().default(false);
+export const boolean = z.coerce.boolean()
 
 export const id = z.cuid("المعرف غير صحيح");
 
@@ -60,3 +60,5 @@ export const address = z
 export const dateIso = z.iso.datetime();
 
 export const platform = z.enum(Platform);
+
+export const string = z.string()
