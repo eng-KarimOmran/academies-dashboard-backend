@@ -1,8 +1,10 @@
 import z from "zod";
 import {
+  OwnerType,
   Platform,
   Role,
   TrainingSupport,
+  Transmission,
   UserStatus,
 } from "../../generated/prisma/enums";
 
@@ -24,7 +26,7 @@ export const password = z
 
 export const userRole = z.array(z.enum(Role));
 
-export const boolean = z.coerce.boolean()
+export const boolean = z.coerce.boolean();
 
 export const id = z.cuid("المعرف غير صحيح");
 
@@ -61,4 +63,8 @@ export const dateIso = z.iso.datetime();
 
 export const platform = z.enum(Platform);
 
-export const string = z.string()
+export const string = z.string();
+
+export const transmission = z.enum(Transmission);
+
+export const ownerType = z.enum(OwnerType)

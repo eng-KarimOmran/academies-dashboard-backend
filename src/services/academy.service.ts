@@ -4,11 +4,9 @@ import * as DTO from "../DTOs/academy.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
-import { Academy, User } from "../../generated/prisma/client";
+import { User } from "../../generated/prisma/client";
 import dayjs from "dayjs";
-import { getCustomPeriod } from "../utils/getCustomPeriod";
-import { omitKeys } from "../utils/omitKeys";
-import { USER_SENSITIVE_KEYS } from "../utils/safeKeys";
+import { AcademyUpdateInput } from "../../generated/prisma/models";
 
 export const createAcademy = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -65,10 +63,10 @@ export const updateAcademy = async (req: RequestAuth, res: Response) => {
   const { id } = params;
   const { name, owners, address, phone, instaPay, socialMedia } = body;
 
-  const data: any = {};
+  const data: AcademyUpdateInput = {};
 
   const academyExists = await prisma.academy.findUnique({
-    where: { id , deletedAt:null},
+    where: { id, deletedAt: null },
     include: {
       owners: true,
     },
@@ -88,25 +86,33 @@ export const updateAcademy = async (req: RequestAuth, res: Response) => {
     data.phone = phone;
   }
 
-  if (owners && owners.length > 0) {
-    const ownerIds = owners.map((o) => o.id).sort();
-    const existingOwnerIds = academyExists.owners.map((o) => o.id).sort();
-    const ownersChanged = ownerIds.some(
-      (id, idx) => id !== existingOwnerIds[idx],
-    );
-    if (ownersChanged) {
-      const users = await prisma.user.findMany({
-        where: {
-          id: { in: ownerIds },
-          deletedAt: null,
-        },
-      });
-      if (users.length !== owners.length) throw ApiError.NotFound("احد الملاك");
-      data.owners = owners;
-    }
+  if (owners?.length) {
+    const uniqueOwnerIds = [...new Set(owners.map((o) => o.id))];
+    const users = await prisma.user.findMany({
+      where: { id: { in: uniqueOwnerIds }, deletedAt: null },
+    });
+    if (users.length !== uniqueOwnerIds.length)
+      throw ApiError.NotFound("احد الملاك");
+    data.owners = { set: uniqueOwnerIds.map((id) => ({ id })) };
   }
 
-  if (socialMedia && socialMedia.length > 0) data.socialMedia = socialMedia;
+  if (socialMedia?.length) {
+    data.socialMediaPlatforms = {
+      deleteMany: {},
+      create: socialMedia.map((sm) => ({
+        platform: sm.platform,
+        url: sm.url,
+      })),
+    };
+  }
+
+  if (socialMedia && socialMedia.length > 0) {
+    data.socialMediaPlatforms = {
+      deleteMany: {},
+      create: socialMedia,
+    };
+  }
+
   if (address) data.address = address;
   if (instaPay) data.instaPay = instaPay;
 

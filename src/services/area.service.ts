@@ -5,6 +5,7 @@ import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
 import dayjs from "dayjs";
+import { AreaUpdateInput } from "../../generated/prisma/models";
 
 export const createArea = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -35,7 +36,7 @@ export const updateArea = async (req: RequestAuth, res: Response) => {
   const { id } = params;
   const { name, supportType, isActive } = body;
 
-  const data: any = {};
+  const data: AreaUpdateInput = {};
 
   const areaExists = await prisma.area.findUnique({
     where: { id, deletedAt: null },

@@ -134,16 +134,14 @@ model Captain {
 // ==========================================
 
 model Car {
-  id           String @id @default(cuid())
-  plateLetters String // حروف اللوحة (أ ب ج)
-  plateNumbers String // أرقام اللوحة (123)
-  plateNumber  String @unique // دمج الحروف والأرقام
+  id          String @id @default(cuid())
+  modelName   String
+  plateNumber String @unique
 
   gearType  Transmission
   ownerType OwnerType
 
-  // ملكية وتتبع السيارة
-  captainId String? // إذا كانت مملوكة لمدرب
+  captainId String?
   captain   Captain? @relation("CaptainCars", fields: [captainId], references: [id])
 
   carSessionPrice Float   @default(0)
