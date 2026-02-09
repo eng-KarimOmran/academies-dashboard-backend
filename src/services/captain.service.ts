@@ -5,6 +5,7 @@ import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
 import { Captain } from "../../generated/prisma/client";
+import { CaptainUpdateInput } from "../../generated/prisma/models";
 
 export const createCaptain = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -49,7 +50,7 @@ export const updateCaptain = async (req: RequestAuth, res: Response) => {
   const { id } = params;
   const { isActive, trainingType, captainLessonPrice } = body;
 
-  const data: Partial<Captain> = {};
+  const data:CaptainUpdateInput = {};
 
   const captainExists = await prisma.captain.findUnique({
     where: { id, deletedAt: null },

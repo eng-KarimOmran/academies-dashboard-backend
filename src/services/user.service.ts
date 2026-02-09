@@ -9,6 +9,7 @@ import { User } from "../../generated/prisma/client";
 import dayjs from "dayjs";
 import { omitKeys } from "../utils/omitKeys";
 import { USER_SENSITIVE_KEYS } from "../utils/safeKeys";
+import { UserUpdateInput } from "../../generated/prisma/models";
 
 export const createUser = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -20,11 +21,13 @@ export const createUser = async (req: RequestAuth, res: Response) => {
 
   const hashedPassword = await HashHelper.hash(password);
 
+  const uniqueRole = [...new Set(role)];
+
   const user = await prisma.user.create({
     data: {
       name,
       phone,
-      role: role,
+      role: uniqueRole,
       password: hashedPassword,
     },
   });
@@ -44,7 +47,7 @@ export const updateUser = async (req: RequestAuth, res: Response) => {
   const { id } = params;
   const { name, phone, password, role, status } = body;
 
-  const data: Partial<User> = {};
+  const data:UserUpdateInput = {};
 
   const userExists = await prisma.user.findUnique({
     where: { id, deletedAt: null },
@@ -65,7 +68,10 @@ export const updateUser = async (req: RequestAuth, res: Response) => {
   }
 
   if (name) data.name = name;
-  if (role) data.role = role;
+  if (role) {
+    const uniqueRole = [...new Set(role)];
+    data.role = uniqueRole;
+  }
   if (status) data.status = status;
 
   const userUpdate = await prisma.user.update({

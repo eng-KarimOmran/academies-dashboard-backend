@@ -8,6 +8,7 @@ import routerAcademy from "./academy.routes";
 import routerArea from "./area.routes";
 import routerCaptain from "./captain.routes";
 import routerCar from "./car.routes";
+import routerSecretary from "./secretary.routes";
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use("/user", routerUser);
 router.use("/academy", routerAcademy);
 router.use("/area", routerArea);
 router.use("/captain", routerCaptain);
+router.use("/secretary", routerSecretary);
 router.use("/car", routerCar);
 
 export default router;

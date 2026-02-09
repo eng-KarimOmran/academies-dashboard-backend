@@ -262,15 +262,30 @@ model PaymentTransaction {
 // ==========================================
 
 model Course {
-  id             String @id @default(cuid())
-  name           String
-  price          Float
-  totalLessons   Int
-  lessonDuration Int
+  id          String @id @default(cuid())
+  name        String
+  description String
+
+  priceOriginal   Int
+  priceDiscounted Int
+  currency        Currency @default(EGP)
+
+  totalSessions     Int
+  practicalSessions Int
+
+  sessionDurationMinutes Int
+
+  trainingDetails String[]
+
+  featuredReason String?
 
   academyId     String
   academy       Academy        @relation(fields: [academyId], references: [id])
   subscriptions Subscription[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
 
 model Lesson {
@@ -409,4 +424,8 @@ enum PaymentStatus {
   COMPLETED
   REJECTED
   REFUNDED
+}
+
+enum Currency {
+  EGP
 }
