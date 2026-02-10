@@ -11,9 +11,6 @@ importers:
       argon2:
         specifier: ^0.44.0
         version: 0.44.0
-      cloudinary:
-        specifier: ^2.9.0
-        version: 2.9.0
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
