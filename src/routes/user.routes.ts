@@ -37,7 +37,7 @@ router.post(
 router.get(
   "/:id",
   validation(Schema.GetDetails),
-  checkRole(["OWNER", "SECRETARY", "CAPTAIN"]),
+  checkRole(["OWNER"]),
   Service.getDetailsUser,
 );
 

@@ -9,7 +9,7 @@ const router = Router();
 router.get(
   "/",
   validation(Schema.GetAll),
-  checkRole(["OWNER"]),
+  checkRole(["OWNER","SECRETARY"]),
   Service.getAllArea,
 );
 

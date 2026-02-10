@@ -7,7 +7,7 @@ import {
   Restore,
   GetAllDeleted,
   GetDetails,
-} from "../validations/course.validation";
+} from "../validations/client.validation";
 
 export type CreateDto = {
   params: z.infer<typeof Create.params>;

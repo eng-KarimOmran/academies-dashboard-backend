@@ -14,24 +14,26 @@ import {
 export const Create = {
   body: z.object({
     name: textAndNum,
-    owners: z.array(z.object({ id })),
+    owners: z.array(z.object({ phone })),
     phone,
     address,
-    instaPay: string,
-    socialMedia: z.array(
-      z.object({
-        platform,
-        url: z.url(),
-      }),
-    ),
+    instaPay: string.optional(),
+    socialMedia: z
+      .array(
+        z.object({
+          platform,
+          url: z.url(),
+        }),
+      )
+      .optional(),
   }),
 };
 
 export const Update = {
-  params: z.object({ id }),
+  params: z.object({ academyId: id }),
   body: z.object({
     name: textAndNum.optional(),
-    owners: z.array(z.object({ id })).optional(),
+    owners: z.array(z.object({ phone })).optional(),
     phone: phone.optional(),
     address: address.optional(),
     instaPay: string.optional(),
@@ -47,7 +49,7 @@ export const Update = {
 };
 
 export const Delete = {
-  params: z.object({ id }),
+  params: z.object({ academyId: id }),
 };
 
 export const GetAll = {
@@ -58,7 +60,7 @@ export const GetAll = {
 };
 
 export const Restore = {
-  params: z.object({ id }),
+  params: z.object({ academyId: id }),
 };
 
 export const GetAllDeleted = {
@@ -69,5 +71,5 @@ export const GetAllDeleted = {
 };
 
 export const GetDetails = {
-  params: z.object({ id }),
+  params: z.object({ academyId: id }),
 };

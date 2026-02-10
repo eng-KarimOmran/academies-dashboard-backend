@@ -4,9 +4,10 @@ import * as DTO from "../DTOs/academy.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
-import { User } from "../../generated/prisma/client";
+import { Academy, User } from "../../generated/prisma/client";
 import dayjs from "dayjs";
 import { AcademyUpdateInput } from "../../generated/prisma/models";
+import { RequestAcademy } from "../middlewares/verifyAcademy.middleware";
 
 export const createAcademy = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -19,18 +20,21 @@ export const createAcademy = async (req: RequestAuth, res: Response) => {
   });
 
   if (academyExists)
-    throw ApiError.Conflict("اسم الأكادمية او رقم الهاتف مسجل بالفعل");
+    throw ApiError.Conflict("اسم الأكاديمية أو رقم الهاتف مسجل بالفعل");
+
+  const uniqueOwnerPhones = [...new Set(owners.map((owner) => owner.phone))];
 
   const users = await prisma.user.findMany({
     where: {
-      id: {
-        in: owners.map((owner) => owner.id),
-      },
       deletedAt: null,
+      phone: {
+        in: uniqueOwnerPhones,
+      },
     },
   });
 
-  if (users.length !== owners.length) throw ApiError.NotFound("احد الملاك");
+  if (users.length !== uniqueOwnerPhones.length)
+    throw ApiError.NotFound("أحد الملاك");
 
   const academy = await prisma.academy.create({
     data: {
@@ -39,14 +43,15 @@ export const createAcademy = async (req: RequestAuth, res: Response) => {
       address,
       instaPay,
       owners: {
-        connect: owners,
+        connect: users.map((user) => ({ id: user.id })),
       },
       socialMediaPlatforms: {
-        create: socialMedia,
+        create: socialMedia ?? [],
       },
     },
     include: {
       socialMediaPlatforms: true,
+      owners: { select: { id: true, name: true, phone: true } },
     },
   });
 
@@ -54,62 +59,56 @@ export const createAcademy = async (req: RequestAuth, res: Response) => {
     res,
     statusCode: 201,
     data: academy,
-    message: "تم اضافة الأكادمية بنجاح",
+    message: "تم إضافة الأكاديمية بنجاح",
   });
 };
 
 export const updateAcademy = async (req: RequestAuth, res: Response) => {
   const { body, params } = req.dataSafe as DTO.UpdateDto;
-  const { id } = params;
+  const { academyId } = params;
   const { name, owners, address, phone, instaPay, socialMedia } = body;
 
   const data: AcademyUpdateInput = {};
 
   const academyExists = await prisma.academy.findUnique({
-    where: { id, deletedAt: null },
-    include: {
-      owners: true,
-    },
+    where: { id: academyId, deletedAt: null },
+    include: { owners: true },
   });
 
-  if (!academyExists) throw ApiError.NotFound("الأكادمية غير موجود");
+  if (!academyExists) throw ApiError.NotFound("الأكاديمية غير موجودة");
 
   if (name && name !== academyExists.name) {
     const nameExists = await prisma.academy.findUnique({ where: { name } });
-    if (nameExists) throw ApiError.Conflict("اسم الأكادمية مسجل بالفعل");
+    if (nameExists) throw ApiError.Conflict("اسم الأكاديمية مسجل بالفعل");
     data.name = name;
   }
 
   if (phone && phone !== academyExists.phone) {
     const phoneExists = await prisma.academy.findUnique({ where: { phone } });
-    if (phoneExists) throw ApiError.Conflict("رقم الأكادمية مسجل بالفعل");
+    if (phoneExists) throw ApiError.Conflict("رقم الأكاديمية مسجل بالفعل");
     data.phone = phone;
   }
 
-  if (owners?.length) {
-    const uniqueOwnerIds = [...new Set(owners.map((o) => o.id))];
+  if (owners) {
+    const uniqueOwnerPhones = [...new Set(owners.map((o) => o.phone))];
+
     const users = await prisma.user.findMany({
-      where: { id: { in: uniqueOwnerIds }, deletedAt: null },
+      where: { phone: { in: uniqueOwnerPhones }, deletedAt: null },
     });
-    if (users.length !== uniqueOwnerIds.length)
-      throw ApiError.NotFound("احد الملاك");
-    data.owners = { set: uniqueOwnerIds.map((id) => ({ id })) };
+
+    if (users.length !== uniqueOwnerPhones.length)
+      throw ApiError.NotFound("أحد الملاك");
+
+    data.owners = { set: users.map((user) => ({ id: user.id })) };
   }
 
-  if (socialMedia?.length) {
+  if (socialMedia) {
     data.socialMediaPlatforms = {
       deleteMany: {},
       create: socialMedia.map((sm) => ({
         platform: sm.platform,
         url: sm.url,
       })),
-    };
-  }
-
-  if (socialMedia && socialMedia.length > 0) {
-    data.socialMediaPlatforms = {
-      deleteMany: {},
-      create: socialMedia,
     };
   }
 
@@ -121,34 +120,36 @@ export const updateAcademy = async (req: RequestAuth, res: Response) => {
     data,
     include: {
       socialMediaPlatforms: true,
+      owners: { select: { id: true, name: true, phone: true } },
     },
   });
 
   return sendSuccess({
     res,
     data: academyUpdate,
+    message: "تم تحديث بيانات الأكاديمية",
   });
 };
 
 export const deleteAcademy = async (req: RequestAuth, res: Response) => {
   const { params } = req.dataSafe as DTO.DeleteDto;
-  const { id } = params;
+  const { academyId } = params;
 
   const academyExists = await prisma.academy.findUnique({
-    where: { id, deletedAt: null },
+    where: { id: academyId, deletedAt: null },
   });
 
-  if (!academyExists) throw ApiError.NotFound("الأكادمية غير موجود");
+  if (!academyExists) throw ApiError.NotFound("الأكاديمية غير موجودة");
 
   const academy = await prisma.academy.update({
-    where: { id },
+    where: { id: academyId },
     data: { deletedAt: dayjs().toDate() },
     include: {
       socialMediaPlatforms: true,
     },
   });
 
-  return sendSuccess({ res, data: academy });
+  return sendSuccess({ res, data: academy, message: "تم حذف الأكاديمية" });
 };
 
 export const getAllDeleted = async (req: RequestAuth, res: Response) => {
@@ -210,31 +211,38 @@ export const getAllAcademy = async (req: RequestAuth, res: Response) => {
 
 export const restore = async (req: RequestAuth, res: Response) => {
   const { params } = req.dataSafe as DTO.RestoreDto;
-  const { id } = params;
-  const academy = await prisma.academy.findUnique({ where: { id } });
-  if (!academy) throw ApiError.NotFound("الأكادمية غير موجود");
+  const { academyId } = params;
 
-  if (!academy.deletedAt) throw ApiError.BadRequest("الأكادمية بالفعل مفعل");
+  const academy = await prisma.academy.findUnique({
+    where: {
+      id: academyId,
+    },
+  });
+
+  if (!academy) throw ApiError.NotFound("الأكادمية");
+  
+  if (!academy.deletedAt) throw ApiError.BadRequest("الأكاديمية مفعلة بالفعل");
 
   const restoredAcademy = await prisma.academy.update({
-    where: { id },
+    where: { id: academy.id },
     data: { deletedAt: null },
     include: {
       socialMediaPlatforms: true,
     },
   });
 
-  return sendSuccess({ res, data: restoredAcademy });
+  return sendSuccess({
+    res,
+    data: restoredAcademy,
+    message: "تم استعادة الأكاديمية",
+  });
 };
 
-export const getDetailsAcademy = async (req: RequestAuth, res: Response) => {
-  const userLogin = req.user as User;
-
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
-  const { id } = params;
+export const getDetailsAcademy = async (req: RequestAcademy, res: Response) => {
+  const academy = req.academy as Academy;
 
   const academyDetails = await prisma.academy.findUnique({
-    where: { id, deletedAt: null },
+    where: { id: academy.id },
     include: {
       owners: {
         select: {
@@ -243,19 +251,9 @@ export const getDetailsAcademy = async (req: RequestAuth, res: Response) => {
           phone: true,
         },
       },
-      socialMediaPlatforms: {
-        select: {
-          id: true,
-          platform: true,
-          url: true,
-        },
-      },
+      socialMediaPlatforms: true,
     },
   });
-
-  if (!academyDetails) throw ApiError.NotFound("الأكادمية");
-  if (!academyDetails.owners.some((owner) => owner.id === userLogin.id))
-    throw ApiError.Forbidden();
 
   return sendSuccess({
     res,

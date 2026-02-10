@@ -1,6 +1,7 @@
 import z from "zod";
 import {
   OwnerType,
+  PaymentMethod,
   Platform,
   Role,
   TrainingSupport,
@@ -67,4 +68,6 @@ export const string = z.string();
 
 export const transmission = z.enum(Transmission);
 
-export const ownerType = z.enum(OwnerType)
+export const ownerType = z.enum(OwnerType);
+
+export const paymentMethod = z.enum(PaymentMethod);

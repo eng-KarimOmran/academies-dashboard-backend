@@ -9,7 +9,7 @@ const router = Router();
 router.get(
   "/",
   validation(Schema.GetAll),
-  checkRole(["OWNER"]),
+  checkRole(["OWNER", "SECRETARY"]),
   Service.getAllCaptain,
 );
 
@@ -23,7 +23,7 @@ router.post(
 router.get(
   "/:id",
   validation(Schema.GetDetails),
-  checkRole(["OWNER"]),
+  checkRole(["OWNER", "CAPTAIN"]),
   Service.getDetailsCaptain,
 );
 

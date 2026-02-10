@@ -58,11 +58,11 @@ model InvalidToken {
 // ==========================================
 
 model Academy {
-  id       String @id @default(cuid())
-  name     String @unique
-  phone    String @unique
+  id       String  @id @default(cuid())
+  name     String  @unique
+  phone    String  @unique
   address  String
-  instaPay String
+  instaPay String?
 
   // التواصل الاجتماعي
   socialMediaPlatforms SocialMedia[]
@@ -207,11 +207,9 @@ model Subscription {
   academyId String
   academy   Academy @relation(fields: [academyId], references: [id])
 
-  priceAtBooking   Float // السعر المتفق عليه وقت الاشتراك
-  totalPaid        Float @default(0) // إجمالي المدفوع
-  totalLessons     Int
-  remainingLessons Int
-  lessonDuration   Int // مدة الحصة بالدقائق
+  priceAtBooking Float
+  totalSessions   Int
+  sessionDurationMinutes Int
 
   lessons      Lesson[]
   payments     PaymentTransaction[]

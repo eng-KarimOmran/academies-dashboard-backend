@@ -5,6 +5,7 @@ import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
 import dayjs from "dayjs";
+
 import {
   CourseCreateInput,
   CourseUpdateInput,
@@ -27,10 +28,6 @@ export const createCourse = async (req: RequestAuth, res: Response) => {
 
   const academyId = req.params.academyId;
 
-  const academy = await prisma.academy.findUnique({ where: { id: academyId } });
-
-  if (!academy) throw ApiError.BadRequest("معرف الأكادمية غير صالح");
-
   const courseExists = await prisma.course.findUnique({
     where: {
       academyId_name: {
@@ -45,7 +42,7 @@ export const createCourse = async (req: RequestAuth, res: Response) => {
   const data: CourseCreateInput = {
     name,
     description,
-    academy: { connect: { id: academy.id } },
+    academy: { connect: { id:academyId } },
     practicalSessions,
     priceDiscounted: priceDiscounted ?? priceOriginal,
     priceOriginal,

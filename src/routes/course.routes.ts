@@ -3,14 +3,14 @@ import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/course.validation";
 import * as Service from "../services/course.service";
 import checkRole from "../middlewares/role.middleware";
-import { isAcademyOwner } from "../middlewares/isAcademyOwner.middleware";
+import { verifyAcademy } from "../middlewares/verifyAcademy.middleware";
 
 const router = Router({ mergeParams: true });
 
 router.get(
   "/",
   validation(Schema.GetAll),
-  checkRole(["OWNER"]),
+  checkRole(["OWNER", "SECRETARY"]),
   Service.getAllCourse,
 );
 
@@ -18,7 +18,7 @@ router.post(
   "/",
   validation(Schema.Create),
   checkRole(["OWNER"]),
-  isAcademyOwner,
+  verifyAcademy(),
   Service.createCourse,
 );
 
@@ -26,7 +26,7 @@ router.get(
   "/deleted",
   validation(Schema.GetAllDeleted),
   checkRole(["OWNER"]),
-  isAcademyOwner,
+  verifyAcademy(),
   Service.getAllDeleted,
 );
 
@@ -34,7 +34,7 @@ router.post(
   "/restore/:id",
   validation(Schema.Restore),
   checkRole(["OWNER"]),
-  isAcademyOwner,
+  verifyAcademy(),
   Service.restore,
 );
 
@@ -49,7 +49,7 @@ router.patch(
   "/:id",
   validation(Schema.Update),
   checkRole(["OWNER"]),
-  isAcademyOwner,
+  verifyAcademy(),
   Service.updateCourse,
 );
 
@@ -57,7 +57,7 @@ router.delete(
   "/:id",
   validation(Schema.Delete),
   checkRole(["OWNER"]),
-  isAcademyOwner,
+  verifyAcademy(),
   Service.deleteCourse,
 );
 
