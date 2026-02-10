@@ -9,6 +9,7 @@ import routerArea from "./area.routes";
 import routerCaptain from "./captain.routes";
 import routerCar from "./car.routes";
 import routerSecretary from "./secretary.routes";
+import routerCourse from "./course.routes";
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use("/area", routerArea);
 router.use("/captain", routerCaptain);
 router.use("/secretary", routerSecretary);
 router.use("/car", routerCar);
+router.use("/course", routerCourse);
 
 export default router;
