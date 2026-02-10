@@ -3,6 +3,7 @@ import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/academy.validation";
 import * as Service from "../services/academy.service";
 import checkRole from "../middlewares/role.middleware";
+import routerCourse from "./course.routes";
 
 const router = Router();
 
@@ -55,4 +56,5 @@ router.delete(
   Service.deleteAcademy,
 );
 
+router.use("/:academyId/course", routerCourse);
 export default router;

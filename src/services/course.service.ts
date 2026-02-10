@@ -15,7 +15,6 @@ export const createCourse = async (req: RequestAuth, res: Response) => {
 
   const {
     name,
-    academyId,
     description,
     practicalSessions,
     priceDiscounted,
@@ -25,6 +24,8 @@ export const createCourse = async (req: RequestAuth, res: Response) => {
     featuredReason,
     trainingDetails,
   } = body;
+
+  const academyId = req.params.academyId;
 
   const academy = await prisma.academy.findUnique({ where: { id: academyId } });
 
@@ -147,6 +148,8 @@ export const deleteCourse = async (req: RequestAuth, res: Response) => {
 
 export const getAllDeleted = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
+  const academyId = req.params.academyId;
+
   const { limit, page } = query;
   const skip = (page - 1) * limit;
 
@@ -154,6 +157,7 @@ export const getAllDeleted = async (req: RequestAuth, res: Response) => {
     const courses = await tx.course.findMany({
       where: {
         deletedAt: { not: null },
+        academyId,
       },
       orderBy: {
         deletedAt: "desc",
@@ -174,6 +178,8 @@ export const getAllDeleted = async (req: RequestAuth, res: Response) => {
 
 export const getAllCourse = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
+  const academyId = req.params.academyId;
+
   const { limit, page } = query;
   const skip = (page - 1) * limit;
 
@@ -181,6 +187,7 @@ export const getAllCourse = async (req: RequestAuth, res: Response) => {
     const courses = await tx.course.findMany({
       where: {
         deletedAt: null,
+        academyId,
       },
       orderBy: { createdAt: "desc" },
       take: limit,

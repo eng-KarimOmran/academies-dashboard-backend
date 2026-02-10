@@ -22,6 +22,5 @@ router.use("/area", routerArea);
 router.use("/captain", routerCaptain);
 router.use("/secretary", routerSecretary);
 router.use("/car", routerCar);
-router.use("/course", routerCourse);
 
 export default router;

@@ -1,5 +1,5 @@
 // ==========================================
-// الإعدادات العامة (Configuration)
+// الإعدادات  العامة (Configuration)
 // ==========================================
 
 generator client {
@@ -33,6 +33,7 @@ model User {
   ownedAcademies   Academy[]            @relation("AcademyOwners")
   receivedPayments PaymentTransaction[] @relation("PaymentReceiver")
   invalidTokens    InvalidToken[]
+  clients          Client[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -103,12 +104,10 @@ model Secretary {
   deletedAt DateTime?
   createdAt DateTime  @default(now())
 
-  baseSalary Float
-  bonus      Float
-  target     Int
-
-  registeredClients Client[] @relation("RegisteredBy")
-  processedLessons  Lesson[] @relation("SecretaryLessons")
+  baseSalary       Float
+  bonus            Float
+  target           Int
+  processedLessons Lesson[] @relation("SecretaryLessons")
 
   @@index([isActive])
 }
@@ -180,15 +179,15 @@ model Client {
   academyId String
   academy   Academy @relation(fields: [academyId], references: [id])
 
-  registeredById String?
-  registeredBy   Secretary? @relation("RegisteredBy", fields: [registeredById], references: [id])
-
   subscriptions Subscription[]
   lessons       Lesson[]
   payments      PaymentTransaction[]
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
+
+  registeredById String?
+  registeredBy   User?   @relation(fields: [registeredById], references: [id])
 
   @@unique([academyId, phone])
   @@index([name])
