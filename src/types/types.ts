@@ -8,3 +8,13 @@ export interface MulterFilesUser {
   nationalIdFront?: Express.Multer.File[];
   nationalIdBack?: Express.Multer.File[];
 }
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}

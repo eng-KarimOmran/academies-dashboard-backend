@@ -16,7 +16,11 @@ export interface ValidationSchemas {
   params?: ZodObject;
 }
 
-const validation = ({ body, params, query }: ValidationSchemas):RequestHandler => {
+const validation = ({
+  body,
+  params,
+  query,
+}: ValidationSchemas): RequestHandler => {
   return async (req: RequestValidation, res: Response, next: NextFunction) => {
     try {
       if (!req.dataSafe) req.dataSafe = {};
@@ -40,6 +44,7 @@ const validation = ({ body, params, query }: ValidationSchemas):RequestHandler =
           .join(" | ");
         throw ApiError.ValidationError(message);
       }
+      throw ApiError.Internal();
     }
   };
 };

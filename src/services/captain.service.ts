@@ -6,6 +6,8 @@ import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
 import { Captain } from "../../generated/prisma/client";
 import { CaptainUpdateInput } from "../../generated/prisma/models";
+import { PaginatedResponse } from "../types/types";
+import { getPaginationParams } from "../utils/Pagination";
 
 export const createCaptain = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -26,8 +28,7 @@ export const createCaptain = async (req: RequestAuth, res: Response) => {
 
   const captainExists = await prisma.captain.findUnique({ where: { userId } });
 
-  if (captainExists)
-    throw ApiError.Conflict("المستخدم لدية ملف كابتن بالفعل");
+  if (captainExists) throw ApiError.Conflict("المستخدم لدية ملف كابتن بالفعل");
 
   const captain = await prisma.captain.create({
     data: {
@@ -50,7 +51,7 @@ export const updateCaptain = async (req: RequestAuth, res: Response) => {
   const { id } = params;
   const { isActive, trainingType, captainLessonPrice } = body;
 
-  const data:CaptainUpdateInput = {};
+  const data: CaptainUpdateInput = {};
 
   const captainExists = await prisma.captain.findUnique({
     where: { id, deletedAt: null },
@@ -78,25 +79,35 @@ export const updateCaptain = async (req: RequestAuth, res: Response) => {
 export const getAllCaptain = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
 
-  const { items, count } = await prisma.$transaction(async (tx) => {
-    const items = await tx.captain.findMany({
-      where: {
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip,
-    });
-    const count = await tx.captain.count({ where: { deletedAt: null } });
-    return { items, count };
+  const total = await prisma.captain.count({ where: { deletedAt: null } });
+
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
   });
 
-  return sendSuccess({
-    res,
-    data: { items, count, limit, page },
+  const items = await prisma.captain.findMany({
+    where: {
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
+
+  const data: PaginatedResponse<Captain> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const getDetailsCaptain = async (req: RequestAuth, res: Response) => {

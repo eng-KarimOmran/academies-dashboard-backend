@@ -6,6 +6,9 @@ import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
 import dayjs from "dayjs";
 import { AreaUpdateInput } from "../../generated/prisma/models";
+import { PaginatedResponse } from "../types/types";
+import { Area } from "../../generated/prisma/client";
+import { getPaginationParams } from "../utils/Pagination";
 
 export const createArea = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -85,52 +88,73 @@ export const deleteArea = async (req: RequestAuth, res: Response) => {
 export const getAllDeleted = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
 
-  const { items, count } = await prisma.$transaction(async (tx) => {
-    const items = await tx.area.findMany({
-      where: {
-        deletedAt: { not: null },
-      },
-      orderBy: {
-        deletedAt: "desc",
-      },
-      take: limit,
-      skip,
-    });
-    const count = await tx.area.count({
-      where: {
-        deletedAt: { not: null },
-      },
-    });
-    return { count, items };
+  const total = await prisma.area.count({
+    where: {
+      deletedAt: { not: null },
+    },
   });
 
-  return sendSuccess({ res, data: { items, limit, page, count } });
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
+  });
+  const items = await prisma.area.findMany({
+    where: {
+      deletedAt: { not: null },
+    },
+    orderBy: {
+      deletedAt: "desc",
+    },
+    take: limit,
+    skip,
+  });
+
+  const data: PaginatedResponse<Area> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const getAllArea = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
+  const total = await prisma.area.count({ where: { deletedAt: null } });
 
-  const { items, count } = await prisma.$transaction(async (tx) => {
-    const items = await tx.area.findMany({
-      where: {
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip,
-    });
-    const count = await tx.area.count({ where: { deletedAt: null } });
-    return { items, count };
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
   });
 
-  return sendSuccess({
-    res,
-    data: { items, count, limit, page },
+  const items = await prisma.area.findMany({
+    where: {
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
+
+  const data: PaginatedResponse<Area> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const restore = async (req: RequestAuth, res: Response) => {

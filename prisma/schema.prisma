@@ -1,5 +1,5 @@
 // ==========================================
-// الإعدادات  العامة (Configuration)
+// الإعدادات العامة (Configuration)
 // ==========================================
 
 generator client {
@@ -33,13 +33,15 @@ model User {
   ownedAcademies   Academy[]            @relation("AcademyOwners")
   receivedPayments PaymentTransaction[] @relation("PaymentReceiver")
   invalidTokens    InvalidToken[]
-  clients          Client[]
+  clientRegistered Client[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   logoutAt  DateTime?
   deletedAt DateTime?
 
+  // التعديل: لتمكين findUnique مع Soft Delete
+  @@unique([id, deletedAt])
   @@index([role])
 }
 
@@ -80,6 +82,9 @@ model Academy {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+
+  // التعديل: لتمكين findUnique مع Soft Delete
+  @@unique([id, deletedAt])
 }
 
 model SocialMedia {
@@ -109,6 +114,8 @@ model Secretary {
   target           Int
   processedLessons Lesson[] @relation("SecretaryLessons")
 
+  // التعديل: لتمكين findUnique مع Soft Delete
+  @@unique([id, deletedAt])
   @@index([isActive])
 }
 
@@ -125,6 +132,8 @@ model Captain {
   lessons Lesson[] @relation("CaptainLessons")
   cars    Car[]    @relation("CaptainCars")
 
+  // التعديل: لتمكين findUnique مع Soft Delete
+  @@unique([id, deletedAt])
   @@index([isActive, trainingType])
 }
 
@@ -150,6 +159,8 @@ model Car {
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
+  // التعديل: لتمكين findUnique مع Soft Delete
+  @@unique([id, deletedAt])
   @@index([isActive, gearType])
 }
 
@@ -163,6 +174,8 @@ model Area {
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
+  // التعديل: لتمكين findUnique مع Soft Delete
+  @@unique([id, deletedAt])
   @@index([isActive])
   @@index([supportType])
 }
@@ -189,6 +202,7 @@ model Client {
   registeredById String?
   registeredBy   User?   @relation(fields: [registeredById], references: [id])
 
+  @@unique([id, deletedAt])
   @@unique([academyId, phone])
   @@index([name])
   @@index([phone])
@@ -196,10 +210,10 @@ model Client {
 }
 
 model Subscription {
-  id String @id @default(cuid())
-
+  id       String             @id @default(cuid())
+  status   SubscriptionStatus
   clientId String
-  client   Client @relation(fields: [clientId], references: [id])
+  client   Client             @relation(fields: [clientId], references: [id])
 
   courseId String
   course   Course @relation(fields: [courseId], references: [id])
@@ -207,8 +221,8 @@ model Subscription {
   academyId String
   academy   Academy @relation(fields: [academyId], references: [id])
 
-  priceAtBooking Float
-  totalSessions   Int
+  priceAtBooking         Float
+  totalSessions          Int
   sessionDurationMinutes Int
 
   lessons      Lesson[]
@@ -227,7 +241,7 @@ model PaymentTransaction {
   paymentMethod PaymentMethod
   type          TransactionType @default(PAYMENT)
 
-  status PaymentStatus @default(PENDING)
+  status Status @default(PENDING)
 
   referenceNumber String? @unique
 
@@ -245,6 +259,7 @@ model PaymentTransaction {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   academy   Academy? @relation(fields: [academyId], references: [id])
   academyId String?
 
@@ -283,6 +298,8 @@ model Course {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  // التعديلات
+  @@unique([id, deletedAt])
   @@unique([academyId, name])
   @@index([academyId])
   @@index([name])
@@ -323,12 +340,15 @@ model Lesson {
 }
 
 model SubscriptionCancellation {
-  id             String       @id @default(cuid())
+  id String @id @default(cuid())
+
   subscriptionId String       @unique
   subscription   Subscription @relation(fields: [subscriptionId], references: [id])
-  reason         CancelReason
-  refundAmount   Float        @default(0)
-  createdAt      DateTime     @default(now())
+  status         Status       @default(PENDING)
+
+  reason       CancelReason
+  refundAmount Float        @default(0)
+  createdAt    DateTime     @default(now())
 }
 
 model Expense {
@@ -419,9 +439,16 @@ enum Platform {
   GMAIL
 }
 
-enum PaymentStatus {
+enum Status {
   PENDING
   COMPLETED
   REJECTED
-  REFUNDED
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  SUSPENDED
 }

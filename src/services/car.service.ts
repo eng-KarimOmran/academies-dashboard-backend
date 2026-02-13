@@ -6,6 +6,9 @@ import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
 import dayjs from "dayjs";
 import { CarCreateInput, CarUpdateInput } from "../../generated/prisma/models";
+import { PaginatedResponse } from "../types/types";
+import { Car } from "../../generated/prisma/client";
+import { getPaginationParams } from "../utils/Pagination";
 
 export const createCar = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -143,52 +146,74 @@ export const deleteCar = async (req: RequestAuth, res: Response) => {
 export const getAllDeleted = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
 
-  const { items, count } = await prisma.$transaction(async (tx) => {
-    const items = await tx.car.findMany({
-      where: {
-        deletedAt: { not: null },
-      },
-      orderBy: {
-        deletedAt: "desc",
-      },
-      take: limit,
-      skip,
-    });
-    const count = await tx.car.count({
-      where: {
-        deletedAt: { not: null },
-      },
-    });
-    return { count, items };
+  const total = await prisma.car.count({
+    where: {
+      deletedAt: { not: null },
+    },
   });
 
-  return sendSuccess({ res, data: { items, limit, page, count } });
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
+  });
+
+  const items = await prisma.car.findMany({
+    where: {
+      deletedAt: { not: null },
+    },
+    orderBy: {
+      deletedAt: "desc",
+    },
+    take: limit,
+    skip,
+  });
+
+  const data: PaginatedResponse<Car> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const getAllCar = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
+  const total = await prisma.car.count({ where: { deletedAt: null } });
 
-  const { items, count } = await prisma.$transaction(async (tx) => {
-    const items = await tx.car.findMany({
-      where: {
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip,
-    });
-    const count = await tx.car.count({ where: { deletedAt: null } });
-    return { items, count };
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
   });
 
-  return sendSuccess({
-    res,
-    data: { items, count, limit, page },
+  const items = await prisma.car.findMany({
+    where: {
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
+
+  const data: PaginatedResponse<Car> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const restore = async (req: RequestAuth, res: Response) => {

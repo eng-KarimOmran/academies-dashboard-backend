@@ -10,6 +10,8 @@ import dayjs from "dayjs";
 import { omitKeys } from "../utils/omitKeys";
 import { USER_SENSITIVE_KEYS } from "../utils/safeKeys";
 import { UserUpdateInput } from "../../generated/prisma/models";
+import { PaginatedResponse } from "../types/types";
+import { getPaginationParams } from "../utils/Pagination";
 
 export const createUser = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -47,7 +49,7 @@ export const updateUser = async (req: RequestAuth, res: Response) => {
   const { id } = params;
   const { name, phone, password, role, status } = body;
 
-  const data:UserUpdateInput = {};
+  const data: UserUpdateInput = {};
 
   const userExists = await prisma.user.findUnique({
     where: { id, deletedAt: null },
@@ -125,55 +127,82 @@ export const deleteUser = async (req: RequestAuth, res: Response) => {
 export const getAllDeleted = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
-
-  const { users, count } = await prisma.$transaction(async (tx) => {
-    const users = await tx.user.findMany({
-      where: {
-        deletedAt: { not: null },
-      },
-      orderBy: {
-        deletedAt: "desc",
-      },
-      take: limit,
-      skip,
-    });
-
-    const count = await tx.user.count({ where: { deletedAt: { not: null } } });
-
-    return { users, count };
+  const total = await prisma.user.count({
+    where: { deletedAt: { not: null } },
   });
 
-  const usersSafe = users.map((user) =>
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
+  });
+
+  const items = await prisma.user.findMany({
+    where: {
+      deletedAt: { not: null },
+    },
+    orderBy: {
+      deletedAt: "desc",
+    },
+    take: limit,
+    skip,
+  });
+
+  const usersSafe = items.map((user) =>
     omitKeys<User>(user, USER_SENSITIVE_KEYS),
   );
 
-  return sendSuccess({ res, data: { items: usersSafe, count, limit, page } });
+  const data: PaginatedResponse<Partial<User>> = {
+    items: usersSafe,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const getAllUser = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
 
-  const { users, count } = await prisma.$transaction(async (tx) => {
-    const users = await tx.user.findMany({
-      where: {
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip,
-    });
-    const count = await tx.user.count({ where: { deletedAt: null } });
-    return { users, count };
+  const total = await prisma.user.count({
+    where: { deletedAt: null },
   });
 
-  const usersSafe = users.map((user) =>
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
+  });
+
+  const items = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
+  });
+
+  const usersSafe = items.map((user) =>
     omitKeys<User>(user, USER_SENSITIVE_KEYS),
   );
 
-  return sendSuccess({ res, data: { items: usersSafe, count, limit, page } });
+  const data: PaginatedResponse<Partial<User>> = {
+    items: usersSafe,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const restore = async (req: RequestAuth, res: Response) => {

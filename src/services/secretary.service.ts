@@ -5,6 +5,9 @@ import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
 import { SecretaryUpdateInput } from "../../generated/prisma/models";
+import { Secretary } from "../../generated/prisma/client";
+import { PaginatedResponse } from "../types/types";
+import { getPaginationParams } from "../utils/Pagination";
 
 export const createSecretary = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -82,25 +85,34 @@ export const updateSecretary = async (req: RequestAuth, res: Response) => {
 export const getAllSecretary = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
+  const total = await prisma.secretary.count({ where: { deletedAt: null } });
 
-  const { items, count } = await prisma.$transaction(async (tx) => {
-    const items = await tx.secretary.findMany({
-      where: {
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip,
-    });
-    const count = await tx.secretary.count({ where: { deletedAt: null } });
-    return { items, count };
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
   });
 
-  return sendSuccess({
-    res,
-    data: { items, count, limit, page },
+  const items = await prisma.secretary.findMany({
+    where: {
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
+
+  const data: PaginatedResponse<Secretary> = {
+    items,
+    pagination: {
+      limit,
+      page:safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const getDetailsSecretary = async (req: RequestAuth, res: Response) => {

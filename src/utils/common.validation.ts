@@ -1,5 +1,6 @@
 import z from "zod";
 import {
+  CancelReason,
   OwnerType,
   PaymentMethod,
   Platform,
@@ -71,3 +72,5 @@ export const transmission = z.enum(Transmission);
 export const ownerType = z.enum(OwnerType);
 
 export const paymentMethod = z.enum(PaymentMethod);
+
+export const cancelReason = z.enum(CancelReason);

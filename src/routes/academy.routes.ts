@@ -6,6 +6,7 @@ import checkRole from "../middlewares/role.middleware";
 import routerCourse from "./course.routes";
 import { verifyAcademy } from "../middlewares/verifyAcademy.middleware";
 import routerClient from "./client.routes";
+import routerSubscription from "./subscription.routes";
 
 const router = Router();
 
@@ -63,4 +64,6 @@ router.delete(
 
 router.use("/:academyId/course", routerCourse);
 router.use("/:academyId/client", routerClient);
+router.use("/:academyId/subscription", routerSubscription);
+
 export default router;

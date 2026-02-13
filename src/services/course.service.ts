@@ -10,6 +10,9 @@ import {
   CourseCreateInput,
   CourseUpdateInput,
 } from "../../generated/prisma/models";
+import { PaginatedResponse } from "../types/types";
+import { Course } from "../../generated/prisma/client";
+import { getPaginationParams } from "../utils/Pagination";
 
 export const createCourse = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -42,7 +45,7 @@ export const createCourse = async (req: RequestAuth, res: Response) => {
   const data: CourseCreateInput = {
     name,
     description,
-    academy: { connect: { id:academyId } },
+    academy: { connect: { id: academyId } },
     practicalSessions,
     priceDiscounted: priceDiscounted ?? priceOriginal,
     priceOriginal,
@@ -148,29 +151,38 @@ export const getAllDeleted = async (req: RequestAuth, res: Response) => {
   const academyId = req.params.academyId;
 
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
-
-  const { courses, count } = await prisma.$transaction(async (tx) => {
-    const courses = await tx.course.findMany({
-      where: {
-        deletedAt: { not: null },
-        academyId,
-      },
-      orderBy: {
-        deletedAt: "desc",
-      },
-      take: limit,
-      skip,
-    });
-
-    const count = await tx.course.count({
-      where: { deletedAt: { not: null } },
-    });
-
-    return { courses, count };
+  const total = await prisma.course.count({
+    where: { deletedAt: { not: null } },
+  });
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
   });
 
-  return sendSuccess({ res, data: { items: courses, count, limit, page } });
+  const items = await prisma.course.findMany({
+    where: {
+      deletedAt: { not: null },
+      academyId,
+    },
+    orderBy: {
+      deletedAt: "desc",
+    },
+    take: limit,
+    skip,
+  });
+
+  const data: PaginatedResponse<Course> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const getAllCourse = async (req: RequestAuth, res: Response) => {
@@ -178,23 +190,34 @@ export const getAllCourse = async (req: RequestAuth, res: Response) => {
   const academyId = req.params.academyId;
 
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
+  const total = await prisma.course.count({ where: { deletedAt: null } });
 
-  const { courses, count } = await prisma.$transaction(async (tx) => {
-    const courses = await tx.course.findMany({
-      where: {
-        deletedAt: null,
-        academyId,
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip,
-    });
-    const count = await tx.course.count({ where: { deletedAt: null } });
-    return { courses, count };
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
+  });
+  const items = await prisma.course.findMany({
+    where: {
+      deletedAt: null,
+      academyId,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
 
-  return sendSuccess({ res, data: { items: courses, count, limit, page } });
+  const data: PaginatedResponse<Course> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const restore = async (req: RequestAuth, res: Response) => {

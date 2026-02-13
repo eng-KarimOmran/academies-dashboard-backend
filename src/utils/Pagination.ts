@@ -1,13 +1,15 @@
-export const getPaginationParams = (query: Record<string, unknown>) => {
-  const { page = 1, limit = 10 } = query;
-  
-  const p = Math.max(1, Number(page));
-  const l = Math.min(50, Number(limit));
-  const skip = (p - 1) * l;
+export const getPaginationParams = ({
+  limit,
+  page,
+  total,
+}: {
+  limit: number;
+  page: number;
+  total: number;
+}) => {
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const safePage = Math.max(1, Math.min(page, totalPages));
+  const skip = (safePage - 1) * limit;
 
-  return {
-    page: p,
-    limit: l,
-    skip,
-  };
+  return { totalPages, safePage, skip, limit: limit };
 };

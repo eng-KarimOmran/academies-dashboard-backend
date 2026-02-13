@@ -8,6 +8,8 @@ import { Academy, User } from "../../generated/prisma/client";
 import dayjs from "dayjs";
 import { AcademyUpdateInput } from "../../generated/prisma/models";
 import { RequestAcademy } from "../middlewares/verifyAcademy.middleware";
+import { PaginatedResponse } from "../types/types";
+import { getPaginationParams } from "../utils/Pagination";
 
 export const createAcademy = async (req: RequestAuth, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -155,58 +157,81 @@ export const deleteAcademy = async (req: RequestAuth, res: Response) => {
 export const getAllDeleted = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
 
-  const { items, count } = await prisma.$transaction(async (tx) => {
-    const items = await tx.academy.findMany({
-      where: {
-        deletedAt: { not: null },
-      },
-      orderBy: {
-        deletedAt: "desc",
-      },
-      include: {
-        socialMediaPlatforms: true,
-      },
-      take: limit,
-      skip,
-    });
-    const count = await tx.academy.count({
-      where: {
-        deletedAt: { not: null },
-      },
-    });
-    return { count, items };
+  const total = await prisma.academy.count({
+    where: {
+      deletedAt: { not: null },
+    },
   });
 
-  return sendSuccess({ res, data: { items, limit, page, count } });
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
+  });
+
+  const items = await prisma.academy.findMany({
+    where: {
+      deletedAt: { not: null },
+    },
+    orderBy: {
+      deletedAt: "desc",
+    },
+    include: {
+      socialMediaPlatforms: true,
+    },
+    take: limit,
+    skip,
+  });
+
+  const data: PaginatedResponse<Academy> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const getAllAcademy = async (req: RequestAuth, res: Response) => {
   const { query } = req.dataSafe as DTO.GetAllDto;
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
 
-  const { items, count } = await prisma.$transaction(async (tx) => {
-    const items = await tx.academy.findMany({
-      where: {
-        deletedAt: null,
-      },
-      include: {
-        socialMediaPlatforms: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip,
-    });
-    const count = await tx.academy.count({ where: { deletedAt: null } });
-    return { items, count };
+  const total = await prisma.academy.count({ where: { deletedAt: null } });
+
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
   });
 
-  return sendSuccess({
-    res,
-    data: { items, count, limit, page },
+  const items = await prisma.academy.findMany({
+    where: {
+      deletedAt: null,
+    },
+    include: {
+      socialMediaPlatforms: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
+
+  const data: PaginatedResponse<Academy> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const restore = async (req: RequestAuth, res: Response) => {
@@ -220,7 +245,7 @@ export const restore = async (req: RequestAuth, res: Response) => {
   });
 
   if (!academy) throw ApiError.NotFound("الأكادمية");
-  
+
   if (!academy.deletedAt) throw ApiError.BadRequest("الأكاديمية مفعلة بالفعل");
 
   const restoredAcademy = await prisma.academy.update({

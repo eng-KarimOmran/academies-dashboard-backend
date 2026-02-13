@@ -7,7 +7,9 @@ import ApiError from "../utils/ApiError";
 import sendSuccess from "../utils/successResponse";
 import dayjs from "dayjs";
 import { ClientUpdateInput } from "../../generated/prisma/models";
-import { Academy, User } from "../../generated/prisma/client";
+import { Academy, Client, User } from "../../generated/prisma/client";
+import { PaginatedResponse } from "../types/types";
+import { getPaginationParams } from "../utils/Pagination";
 
 export const createClient = async (req: RequestAcademy, res: Response) => {
   const { body } = req.dataSafe as DTO.CreateDto;
@@ -37,7 +39,10 @@ export const createClient = async (req: RequestAcademy, res: Response) => {
 
   if (!course) throw ApiError.NotFound("البرنامج");
 
-  if (amount > course.priceDiscounted) throw ApiError.BadRequest("المبلغ المدفوع أكبر من المبلغ المطلوب للبرنامج");
+  const coursePrice = course.priceDiscounted ?? course.priceOriginal;
+
+  if (amount > coursePrice)
+    throw ApiError.BadRequest("المبلغ المدفوع أكبر من المبلغ المطلوب للبرنامج");
 
   const { client, subscription, payment } = await prisma.$transaction(
     async (tx) => {
@@ -52,7 +57,8 @@ export const createClient = async (req: RequestAcademy, res: Response) => {
           courseId: course.id,
           sessionDurationMinutes: course.sessionDurationMinutes,
           totalSessions: course.totalSessions,
-          priceAtBooking: course.priceDiscounted,
+          priceAtBooking: coursePrice,
+          status: paymentMethod === "CASH" ? "ACTIVE" : "PENDING",
         },
       });
 
@@ -146,29 +152,40 @@ export const getAllDeleted = async (req: RequestAuth, res: Response) => {
   const academyId = req.params.academyId;
 
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
 
-  const { clients, count } = await prisma.$transaction(async (tx) => {
-    const clients = await tx.client.findMany({
-      where: {
-        deletedAt: { not: null },
-        academyId,
-      },
-      orderBy: {
-        deletedAt: "desc",
-      },
-      take: limit,
-      skip,
-    });
-
-    const count = await tx.client.count({
-      where: { deletedAt: { not: null } },
-    });
-
-    return { clients, count };
+  const total = await prisma.client.count({
+    where: { deletedAt: { not: null } },
   });
 
-  return sendSuccess({ res, data: { items: clients, count, limit, page } });
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
+  });
+
+  const items = await prisma.client.findMany({
+    where: {
+      deletedAt: { not: null },
+      academyId,
+    },
+    orderBy: {
+      deletedAt: "desc",
+    },
+    take: limit,
+    skip,
+  });
+
+  const data: PaginatedResponse<Client> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const getAllClient = async (req: RequestAuth, res: Response) => {
@@ -176,23 +193,35 @@ export const getAllClient = async (req: RequestAuth, res: Response) => {
   const academyId = req.params.academyId;
 
   const { limit, page } = query;
-  const skip = (page - 1) * limit;
+  const total = await prisma.client.count({ where: { deletedAt: null } });
 
-  const { clients, count } = await prisma.$transaction(async (tx) => {
-    const clients = await tx.client.findMany({
-      where: {
-        deletedAt: null,
-        academyId,
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip,
-    });
-    const count = await tx.client.count({ where: { deletedAt: null } });
-    return { clients, count };
+  const { safePage, skip, totalPages } = getPaginationParams({
+    limit,
+    page,
+    total,
   });
 
-  return sendSuccess({ res, data: { items: clients, count, limit, page } });
+  const items = await prisma.client.findMany({
+    where: {
+      deletedAt: null,
+      academyId,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
+  });
+
+  const data: PaginatedResponse<Client> = {
+    items,
+    pagination: {
+      limit,
+      page: safePage,
+      total,
+      totalPages,
+    },
+  };
+
+  return sendSuccess({ res, data });
 };
 
 export const restore = async (req: RequestAuth, res: Response) => {
