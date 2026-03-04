@@ -1,37 +1,63 @@
 import { Router } from "express";
 import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/captain.validation";
-import * as Service from "../services/captain.service";
+import * as controller from "../controllers/captain.controller";
 import checkRole from "../middlewares/role.middleware";
+import auth from "../middlewares/auth.middleware";
+import { TokenType } from "../utils/Token";
+import { checkPasswordChange } from "../middlewares/checkPasswordChange.middlewares";
 
 const router = Router();
 
+router.use(auth(TokenType.ACCESS), checkPasswordChange);
+
 router.get(
   "/",
-  validation(Schema.GetAll),
+  validation(Schema.GetAllCaptainsSchema),
   checkRole(["OWNER", "SECRETARY"]),
-  Service.getAllCaptain,
+  controller.getAllCaptains,
 );
 
 router.post(
   "/",
-  validation(Schema.Create),
+  validation(Schema.CreateCaptainSchema),
   checkRole(["OWNER"]),
-  Service.createCaptain,
+  controller.createCaptain,
 );
 
 router.get(
-  "/:id",
-  validation(Schema.GetDetails),
+  "/active",
+  validation(Schema.FilterCaptainsSchema),
+  checkRole(["OWNER", "SECRETARY"]),
+  controller.getActiveCaptains,
+);
+
+router.get(
+  "/details/:id",
+  validation(Schema.GetCaptainDetailsSchema),
   checkRole(["OWNER", "CAPTAIN"]),
-  Service.getDetailsCaptain,
+  controller.getDetailsCaptain,
+);
+
+router.get(
+  "/lessons/:id",
+  validation(Schema.GetCaptainScheduleSchema),
+  checkRole(["OWNER", "SECRETARY", "CAPTAIN"]),
+  controller.getCaptainSchedule,
 );
 
 router.patch(
   "/:id",
-  validation(Schema.Update),
+  validation(Schema.UpdateCaptainSchema),
   checkRole(["OWNER"]),
-  Service.updateCaptain,
+  controller.updateCaptain,
+);
+
+router.delete(
+  "/:id",
+  validation(Schema.DeleteCaptainSchema),
+  checkRole(["OWNER"]),
+  controller.deleteCaptain,
 );
 
 export default router;

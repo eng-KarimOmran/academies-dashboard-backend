@@ -1,51 +1,48 @@
 import z from "zod";
 import {
-  boolean,
   id,
   limit,
   positiveNumber,
-  textAndNum,
+  entityName,
+  transmission,
+  boolean,
   trainingSupport,
 } from "../utils/common.validation";
 
-export const Create = {
-  body: z.object({
-    name: textAndNum,
-    supportType: trainingSupport,
+export const FilterAreasSchema = {
+  query: z.object({
+    type: transmission.optional(),
   }),
 };
 
-export const Update = {
+export const CreateAreaSchema = {
+  body: z.object({
+    name: entityName,
+    supportType: trainingSupport.optional().default("BOTH"),
+  }),
+};
+
+export const UpdateAreaSchema = {
   params: z.object({ id }),
   body: z.object({
-    name: textAndNum.optional(),
+    name: entityName.optional(),
     supportType: trainingSupport.optional(),
-    isActive: boolean.optional(),
+    isActive: boolean,
   }),
 };
 
-export const Delete = {
-  params: z.object({ id }),
-};
-
-export const GetAll = {
+export const GetAllAreasSchema = {
   query: z.object({
     page: positiveNumber.optional().default(1),
     limit: limit,
+    search: z.string().optional(),
   }),
 };
 
-export const Restore = {
+export const GetAreaDetailsSchema = {
   params: z.object({ id }),
 };
 
-export const GetAllDeleted = {
-  query: z.object({
-    page: positiveNumber.optional().default(1),
-    limit: limit,
-  }),
-};
-
-export const GetDetails = {
+export const DeleteAreaSchema = {
   params: z.object({ id }),
 };

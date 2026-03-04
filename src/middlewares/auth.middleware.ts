@@ -18,44 +18,36 @@ const auth = (type: TokenType = TokenType.ACCESS): RequestHandler => {
 
     if (type === TokenType.ACCESS) {
       token = req.cookies.access;
-    }
-
-    if (type === TokenType.REFRESH) {
+    } else if (type === TokenType.REFRESH) {
       token = req.cookies.refresh;
     }
 
     if (!token) {
-      throw ApiError.Unauthorized();
+      throw ApiError.Unauthorized(
+        "Session expired or invalid, please login again",
+      );
     }
 
     const tokenPayload = Token.verifyToken(token, type);
 
     if (!tokenPayload) {
-      throw ApiError.Unauthorized();
+      throw ApiError.Unauthorized("Invalid token, please login again");
     }
 
-    const jti = await prisma.invalidToken.findUnique({
-      where: {
-        jti: tokenPayload.jti,
-      },
-      select: {
-        jti: true,
-      },
+    const isBlacklisted = await prisma.blacklistedToken.findUnique({
+      where: { jti: tokenPayload.jti },
     });
 
-    if (jti) {
-      throw ApiError.Unauthorized();
+    if (isBlacklisted) {
+      throw ApiError.Unauthorized("This session has been terminated");
     }
 
     const user = await prisma.user.findUnique({
-      where: {
-        id: tokenPayload.id,
-        deletedAt: null,
-      },
+      where: { id: tokenPayload.id },
     });
 
     if (!user) {
-      throw ApiError.Unauthorized();
+      throw ApiError.NotFound("User");
     }
 
     const logoutTime = user.logoutAt ? dayjs(user.logoutAt).unix() : 0;
@@ -63,12 +55,17 @@ const auth = (type: TokenType = TokenType.ACCESS): RequestHandler => {
     if (user.status === "BANNED" || logoutTime > tokenPayload.iat) {
       res.clearCookie("refresh", cookieRefresh);
       res.clearCookie("access", cookieAccess);
-      throw ApiError.Unauthorized();
+
+      if (user.status === "BANNED") {
+        throw ApiError.AccountBlocked();
+      }
+
+      throw ApiError.Unauthorized("Session expired due to security changes");
     }
 
     req.tokenPayload = tokenPayload;
-
     req.user = user;
+
     next();
   };
 };

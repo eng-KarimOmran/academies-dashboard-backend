@@ -7,7 +7,7 @@ export const LoginSchema = {
 };
 
 export const LogoutSchema = {
-  query: z.object({ allDevices: boolean.optional().default(false) }),
+  query: z.object({ allDevices: boolean.default(false) }),
 };
 
 export const changePasswordSchema = {

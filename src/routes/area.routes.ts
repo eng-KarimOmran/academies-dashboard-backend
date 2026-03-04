@@ -1,58 +1,55 @@
 import { Router } from "express";
 import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/area.validation";
-import * as Service from "../services/area.service";
+import * as controller from "../controllers/area.controller";
 import checkRole from "../middlewares/role.middleware";
+import auth from "../middlewares/auth.middleware";
+import { TokenType } from "../utils/Token";
+import { checkPasswordChange } from "../middlewares/checkPasswordChange.middlewares";
 
 const router = Router();
 
 router.get(
+  "/active",
+  validation(Schema.FilterAreasSchema),
+  controller.getActiveAreas,
+);
+
+router.use(auth(TokenType.ACCESS), checkPasswordChange);
+
+router.get(
   "/",
-  validation(Schema.GetAll),
-  checkRole(["OWNER","SECRETARY"]),
-  Service.getAllArea,
+  validation(Schema.GetAllAreasSchema),
+  checkRole(["OWNER"]),
+  controller.getAllAreas,
 );
 
 router.post(
   "/",
-  validation(Schema.Create),
+  validation(Schema.CreateAreaSchema),
   checkRole(["OWNER"]),
-  Service.createArea,
+  controller.createArea,
 );
 
 router.get(
-  "/deleted",
-  validation(Schema.GetAllDeleted),
-  checkRole(["OWNER"]),
-  Service.getAllDeleted,
-);
-
-router.get(
-  "/:id",
-  validation(Schema.GetDetails),
-  checkRole(["OWNER"]),
-  Service.getDetailsArea,
-);
-
-router.post(
-  "/restore/:id",
-  validation(Schema.Restore),
-  checkRole(["OWNER"]),
-  Service.restore,
+  "/details/:id",
+  validation(Schema.GetAreaDetailsSchema),
+  checkRole(["OWNER", "SECRETARY"]),
+  controller.getDetailsArea,
 );
 
 router.patch(
   "/:id",
-  validation(Schema.Update),
+  validation(Schema.UpdateAreaSchema),
   checkRole(["OWNER"]),
-  Service.updateArea,
+  controller.updateArea,
 );
 
 router.delete(
   "/:id",
-  validation(Schema.Delete),
+  validation(Schema.DeleteAreaSchema),
   checkRole(["OWNER"]),
-  Service.deleteArea,
+  controller.deleteArea,
 );
 
 export default router;

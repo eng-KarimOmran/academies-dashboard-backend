@@ -1,42 +1,26 @@
 import z from "zod";
-import {
-  Create,
-  Delete,
-  GetAll,
-  Update,
-  Restore,
-  GetAllDeleted,
-  GetDetails,
-} from "../validations/client.validation";
+import * as Schema from "../validations/client.validation";
 
-export type CreateDto = {
-  params: z.infer<typeof Create.params>;
-  body: z.infer<typeof Create.body>;
+export type CreateClientDto = {
+  params: z.infer<typeof Schema.CreateClientSchema.params>;
+  body: z.infer<typeof Schema.CreateClientSchema.body>;
 };
 
-export type UpdateDto = {
-  params: z.infer<typeof Update.params>;
-  body: z.infer<typeof Update.body>;
+export type UpdateClientDto = {
+  params: z.infer<typeof Schema.UpdateClientSchema.params>;
+  body: z.infer<typeof Schema.UpdateClientSchema.body>;
 };
 
-export type DeleteDto = {
-  params: z.infer<typeof Delete.params>;
+export type GetAllClientsDto = {
+  params: z.infer<typeof Schema.GetAllClientsSchema.params>;
+  query: z.infer<typeof Schema.GetAllClientsSchema.query>;
 };
 
-export type GetAllDto = {
-  params: z.infer<typeof GetAll.params>;
-  query: z.infer<typeof GetAll.query>;
+export type ClientDetailsDto = {
+  params: z.infer<typeof Schema.GetClientDetailsSchema.params>;
+  query: z.infer<typeof Schema.GetClientDetailsSchema.query>;
 };
 
-export type GetAllDeletedDto = {
-  params: z.infer<typeof GetAllDeleted.params>;
-  query: z.infer<typeof GetAllDeleted.query>;
-};
-
-export type RestoreDto = {
-  params: z.infer<typeof Restore.params>;
-};
-
-export type GetDetailsDto = {
-  params: z.infer<typeof GetDetails.params>;
+export type DeleteClientDto = {
+  params: z.infer<typeof Schema.DeleteClientSchema.params>;
 };

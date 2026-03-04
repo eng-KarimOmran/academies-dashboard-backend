@@ -1,40 +1,49 @@
 import { Router } from "express";
 import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/subscription.validation";
-import * as Service from "../services/subscription.service";
+import * as controller from "../controllers/subscription.controller";
 import checkRole from "../middlewares/role.middleware";
-import { verifyAcademy } from "../middlewares/verifyAcademy.middleware";
+import auth from "../middlewares/auth.middleware";
+import { TokenType } from "../utils/Token";
+import { checkPasswordChange } from "../middlewares/checkPasswordChange.middlewares";
 
 const router = Router({ mergeParams: true });
 
-router.get(
-  "/",
-  validation(Schema.GetAll),
-  checkRole(["OWNER", "SECRETARY"]),
-  Service.getAllSubscription,
-);
+router.use(auth(TokenType.ACCESS), checkPasswordChange);
 
 router.post(
   "/",
-  validation(Schema.Create),
+  validation(Schema.CreateSubscriptionSchema),
   checkRole(["OWNER", "SECRETARY"]),
-  verifyAcademy(false),
-  Service.createSubscription,
-);
-
-router.patch(
-  "/unsubscribe/:id",
-  validation(Schema.Unsubscribe),
-  checkRole(["OWNER", "SECRETARY"]),
-  verifyAcademy(false),
-  Service.Unsubscribe,
+  controller.createSubscription,
 );
 
 router.get(
-  "/:id",
-  validation(Schema.GetDetails),
+  "/",
+  validation(Schema.GetAllSubscriptionsSchema),
   checkRole(["OWNER"]),
-  Service.getDetailsSubscription,
+  controller.getAllSubscriptions,
+);
+
+router.get(
+  "/details/:id",
+  validation(Schema.GetSubscriptionDetailsSchema),
+  checkRole(["OWNER"]),
+  controller.getSubscriptionDetails,
+);
+
+router.post(
+  "/cancel/:subscriptionId",
+  validation(Schema.CancelSubscriptionSchema),
+  checkRole(["OWNER"]),
+  controller.cancelSubscription,
+);
+
+router.delete(
+  "/:id",
+  validation(Schema.DeleteSubscriptionSchema),
+  checkRole(["OWNER"]),
+  controller.deleteSubscription,
 );
 
 export default router;

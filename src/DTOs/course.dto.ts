@@ -1,42 +1,29 @@
 import z from "zod";
-import {
-  Create,
-  Delete,
-  GetAll,
-  Update,
-  Restore,
-  GetAllDeleted,
-  GetDetails,
-} from "../validations/course.validation";
+import * as Schema from "../validations/course.validation";
 
 export type CreateDto = {
-  params: z.infer<typeof Create.params>;
-  body: z.infer<typeof Create.body>;
+  params: z.infer<typeof Schema.CreateSchema.params>;
+  body: z.infer<typeof Schema.CreateSchema.body>;
 };
 
 export type UpdateDto = {
-  params: z.infer<typeof Update.params>;
-  body: z.infer<typeof Update.body>;
+  params: z.infer<typeof Schema.UpdateSchema.params>;
+  body: z.infer<typeof Schema.UpdateSchema.body>;
 };
 
 export type DeleteDto = {
-  params: z.infer<typeof Delete.params>;
+  params: z.infer<typeof Schema.DeleteSchema.params>;
 };
 
 export type GetAllDto = {
-  params: z.infer<typeof GetAll.params>;
-  query: z.infer<typeof GetAll.query>;
-};
-
-export type GetAllDeletedDto = {
-  params: z.infer<typeof GetAllDeleted.params>;
-  query: z.infer<typeof GetAllDeleted.query>;
-};
-
-export type RestoreDto = {
-  params: z.infer<typeof Restore.params>;
+  params: z.infer<typeof Schema.GetAllSchema.params>;
+  query: z.infer<typeof Schema.GetAllSchema.query>;
 };
 
 export type GetDetailsDto = {
-  params: z.infer<typeof GetDetails.params>;
+  params: z.infer<typeof Schema.GetDetailsSchema.params>;
+};
+
+export type GetActiveDto = {
+  params: z.infer<typeof Schema.GetActiveSchema.params>;
 };

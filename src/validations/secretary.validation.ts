@@ -1,32 +1,42 @@
 import z from "zod";
-import { boolean, id, limit, positiveNumber } from "../utils/common.validation";
+import {
+  id,
+  limit,
+  positiveNumber,
+  boolean,
+  phone,
+} from "../utils/common.validation";
 
-export const Create = {
+export const CreateSecretarySchema = {
   body: z.object({
-    userId: id,
+    phone: phone,
     baseSalary: positiveNumber,
-    target: positiveNumber,
-    bonus: positiveNumber,
+    targetCount: positiveNumber,
+    bonusAmount: positiveNumber,
   }),
 };
 
-export const Update = {
+export const UpdateSecretarySchema = {
   params: z.object({ id }),
   body: z.object({
-    isActive: boolean.optional(),
-    baseSalary: positiveNumber,
-    target: positiveNumber,
-    bonus: positiveNumber,
+    baseSalary: positiveNumber.optional(),
+    targetCount: positiveNumber.optional(),
+    bonusAmount: positiveNumber.optional(),
   }),
 };
 
-export const GetAll = {
+export const GetAllSecretariesSchema = {
   query: z.object({
     page: positiveNumber.optional().default(1),
     limit: limit,
+    search: z.string().optional(),
   }),
 };
 
-export const GetDetails = {
+export const GetSecretaryDetailsSchema = {
+  params: z.object({ id }),
+};
+
+export const DeleteSecretarySchema = {
   params: z.object({ id }),
 };

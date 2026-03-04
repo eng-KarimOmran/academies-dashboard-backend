@@ -2,83 +2,60 @@ import z from "zod";
 import {
   id,
   limit,
-  positiveNumber,
-  trainingSupport,
   boolean,
-  textAndNum,
   transmission,
-  ownerType,
+  phone,
+  entityName,
+  price,
+  positiveNumber,
 } from "../utils/common.validation";
 
-export const Create = {
-  body: z
-    .object({
-      plateNumber: textAndNum,
-      gearType: transmission,
-      ownerType: ownerType,
-      modelName: textAndNum,
-      carSessionPrice: positiveNumber.optional(),
-      captainId: id.optional(),
-    })
-    .superRefine((data, ctx) => {
-      if (data.ownerType === "ACADEMY_FLEET") {
-        if (data.carSessionPrice === null) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["carSessionPrice"],
-            message:
-              "carSessionPrice is required when ownerType is ACADEMY_FLEET",
-          });
-        }
-      }
-      if (data.ownerType === "INDIVIDUAL_CAPTAIN") {
-        if (data.captainId == null) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["captainId"],
-            message:
-              "captainId is required when ownerType is INDIVIDUAL_CAPTAIN",
-          });
-        }
-      }
-    }),
+export const CreateCarSchema = {
+  body: z.object({
+    plateNumber: entityName,
+    modelName: entityName,
+    gearType: transmission,
+    carSessionPrice: price.optional().default(0),
+    phones: z
+      .array(phone)
+      .min(1, "At least one owner phone is required")
+      .optional(),
+  }),
 };
 
-export const Update = {
+export const UpdateCarSchema = {
   params: z.object({ id }),
   body: z.object({
-    plateNumber: textAndNum.optional(),
+    plateNumber: entityName.optional(),
+    modelName: entityName.optional(),
     gearType: transmission.optional(),
-    ownerType: ownerType.optional(),
-    modelName: textAndNum.optional(),
-    carSessionPrice: positiveNumber.optional(),
-    captainId: id.optional(),
+    carSessionPrice: price.optional(),
     isActive: boolean.optional(),
+    phones: z
+      .array(phone)
+      .min(1, "At least one owner phone is required")
+      .optional(),
   }),
 };
 
-export const GetAll = {
+export const GetAllCarsSchema = {
   query: z.object({
     page: positiveNumber.optional().default(1),
     limit: limit,
+    search: z.string().optional(),
   }),
 };
 
-export const GetDetails = {
+export const GetCarDetailsSchema = {
   params: z.object({ id }),
 };
 
-export const Delete = {
+export const DeleteCarSchema = {
   params: z.object({ id }),
 };
 
-export const GetAllDeleted = {
+export const FilterByTypeSchema = {
   query: z.object({
-    page: positiveNumber.optional().default(1),
-    limit: limit,
+    type: transmission.optional(),
   }),
-};
-
-export const Restore = {
-  params: z.object({ id }),
 };

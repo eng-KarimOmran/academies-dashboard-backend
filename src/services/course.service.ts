@@ -1,258 +1,181 @@
-import { Response } from "express";
-import { RequestAuth } from "../middlewares/auth.middleware";
 import * as DTO from "../DTOs/course.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
-import sendSuccess from "../utils/successResponse";
-import dayjs from "dayjs";
-
-import {
-  CourseCreateInput,
-  CourseUpdateInput,
-} from "../../generated/prisma/models";
-import { PaginatedResponse } from "../types/types";
-import { Course } from "../../generated/prisma/client";
 import { getPaginationParams } from "../utils/Pagination";
+import { Prisma } from "../../generated/prisma/client";
+import { validateOwnership } from "../utils/validateOwnership";
 
-export const createCourse = async (req: RequestAuth, res: Response) => {
-  const { body } = req.dataSafe as DTO.CreateDto;
+export class CourseService {
+  static async create(userId: string, dataSafe: DTO.CreateDto) {
+    const { body, params } = dataSafe;
+    const { academyId } = params;
 
-  const {
-    name,
-    description,
-    practicalSessions,
-    priceDiscounted,
-    priceOriginal,
-    sessionDurationMinutes,
-    totalSessions,
-    featuredReason,
-    trainingDetails,
-  } = body;
+    await validateOwnership(userId, academyId);
 
-  const academyId = req.params.academyId;
+    const {
+      name,
+      description,
+      priceOriginal,
+      priceDiscounted,
+      totalSessions,
+      practicalSessions,
+      sessionDurationMinutes,
+      trainingDetails,
+      featuredReason,
+    } = body;
 
-  const courseExists = await prisma.course.findUnique({
-    where: {
-      academyId_name: {
-        academyId,
-        name,
-      },
-    },
-  });
-
-  if (courseExists) throw ApiError.Conflict("اسم البرنامج مسجل بالفعل");
-
-  const data: CourseCreateInput = {
-    name,
-    description,
-    academy: { connect: { id: academyId } },
-    practicalSessions,
-    priceDiscounted: priceDiscounted ?? priceOriginal,
-    priceOriginal,
-    sessionDurationMinutes,
-    totalSessions,
-    featuredReason: featuredReason ?? null,
-    trainingDetails: trainingDetails ? [...new Set(trainingDetails)] : [],
-  };
-
-  const course = await prisma.course.create({
-    data,
-  });
-
-  return sendSuccess({
-    res,
-    statusCode: 201,
-    data: course,
-    message: "تم اضافة البرنامج بنجاح",
-  });
-};
-
-export const updateCourse = async (req: RequestAuth, res: Response) => {
-  const { body, params } = req.dataSafe as DTO.UpdateDto;
-  const { id } = params;
-
-  const {
-    name,
-    description,
-    practicalSessions,
-    priceDiscounted,
-    priceOriginal,
-    sessionDurationMinutes,
-    totalSessions,
-    featuredReason,
-    trainingDetails,
-  } = body;
-
-  const data: CourseUpdateInput = {};
-
-  const courseExists = await prisma.course.findUnique({
-    where: { id, deletedAt: null },
-  });
-
-  if (!courseExists) throw ApiError.NotFound("البرنامج غير موجود");
-
-  if (name && name !== courseExists.name) {
-    const course = await prisma.course.findUnique({
+    const courseExists = await prisma.course.findUnique({
       where: {
-        academyId_name: {
-          academyId: courseExists.academyId,
-          name,
-        },
+        academyId_name: { academyId, name },
       },
     });
 
-    if (course) throw ApiError.Conflict("اسم البرنامج مسجل بالفعل");
+    if (courseExists) throw ApiError.Conflict("Name");
 
-    data.name = name;
+    const course = await prisma.course.create({
+      data: {
+        name,
+        description,
+        priceOriginal,
+        priceDiscounted: priceDiscounted ?? priceOriginal,
+        totalSessions,
+        practicalSessions,
+        sessionDurationMinutes,
+        featuredReason,
+        academyId,
+        trainingDetails: trainingDetails ? [...new Set(trainingDetails)] : [],
+      },
+    });
+
+    return course;
   }
 
-  if (description) data.description = description;
-  if (practicalSessions) data.practicalSessions = practicalSessions;
-  if (priceDiscounted) data.priceDiscounted = priceDiscounted;
-  if (priceOriginal) data.priceOriginal = priceOriginal;
-  if (sessionDurationMinutes)
-    data.sessionDurationMinutes = sessionDurationMinutes;
-  if (totalSessions) data.totalSessions = totalSessions;
-  if (featuredReason) data.featuredReason = featuredReason;
-  if (trainingDetails) data.trainingDetails = [...new Set(trainingDetails)];
+  static async update(userId: string, dataSafe: DTO.UpdateDto) {
+    const { body, params } = dataSafe;
+    const { id, academyId } = params;
 
-  const courseUpdate = await prisma.course.update({
-    where: { id },
-    data,
-  });
+    await validateOwnership(userId, academyId);
 
-  return sendSuccess({
-    res,
-    data: courseUpdate,
-  });
-};
+    const {
+      name,
+      description,
+      priceOriginal,
+      priceDiscounted,
+      totalSessions,
+      practicalSessions,
+      sessionDurationMinutes,
+      trainingDetails,
+      featuredReason,
+      isActive,
+    } = body;
 
-export const deleteCourse = async (req: RequestAuth, res: Response) => {
-  const { id } = (req.dataSafe as DTO.DeleteDto).params;
+    const course = await prisma.course.findUnique({
+      where: { academyId_id: { id, academyId } },
+    });
 
-  const courseExists = await prisma.course.findFirst({
-    where: { id, deletedAt: null },
-  });
+    if (!course) throw ApiError.NotFound("Course");
 
-  if (!courseExists) throw ApiError.NotFound("البرنامج غير موجود");
+    if (name && name !== course.name) {
+      const nameTaken = await prisma.course.findFirst({
+        where: { name, academyId },
+      });
+      if (nameTaken) throw ApiError.Conflict("Name");
+    }
 
-  const now = dayjs().toDate();
+    const updatedCourse = await prisma.course.update({
+      where: { id },
+      data: {
+        name,
+        description,
+        priceOriginal,
+        priceDiscounted,
+        totalSessions,
+        practicalSessions,
+        sessionDurationMinutes,
+        featuredReason,
+        isActive,
+        trainingDetails: trainingDetails
+          ? [...new Set(trainingDetails)]
+          : undefined,
+      },
+    });
 
-  const courseDelete = await prisma.course.update({
-    where: { id },
-    data: { deletedAt: now },
-  });
+    return updatedCourse;
+  }
 
-  return sendSuccess({ res, data: courseDelete });
-};
+  static async getAll(dataSafe: DTO.GetAllDto) {
+    const { query, params } = dataSafe;
+    const { academyId } = params;
+    const { limit, page, search } = query;
 
-export const getAllDeleted = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const academyId = req.params.academyId;
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { id: true },
+    });
+    if (!academy) throw ApiError.NotFound("Academy");
 
-  const { limit, page } = query;
-  const total = await prisma.course.count({
-    where: { deletedAt: { not: null } },
-  });
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
-
-  const items = await prisma.course.findMany({
-    where: {
-      deletedAt: { not: null },
+    const where: Prisma.CourseWhereInput = {
       academyId,
-    },
-    orderBy: {
-      deletedAt: "desc",
-    },
-    take: limit,
-    skip,
-  });
+    };
 
-  const data: PaginatedResponse<Course> = {
-    items,
-    pagination: {
+    if (search) {
+      where.name = { contains: search, mode: "insensitive" };
+    }
+
+    const total = await prisma.course.count({ where });
+
+    const { safePage, skip, totalPages } = getPaginationParams({
       limit,
-      page: safePage,
+      page,
       total,
-      totalPages,
-    },
-  };
+    });
 
-  return sendSuccess({ res, data });
-};
+    const items = await prisma.course.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    });
 
-export const getAllCourse = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const academyId = req.params.academyId;
+    return { items, pagination: { limit, page: safePage, total, totalPages } };
+  }
 
-  const { limit, page } = query;
-  const total = await prisma.course.count({ where: { deletedAt: null } });
+  static async getActive(dataSafe: DTO.GetActiveDto) {
+    const { academyId } = dataSafe.params;
 
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
-  const items = await prisma.course.findMany({
-    where: {
-      deletedAt: null,
-      academyId,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip,
-  });
+    const items = await prisma.course.findMany({
+      where: { academyId, isActive: true },
+      orderBy: { name: "asc" },
+    });
 
-  const data: PaginatedResponse<Course> = {
-    items,
-    pagination: {
-      limit,
-      page: safePage,
-      total,
-      totalPages,
-    },
-  };
+    return items;
+  }
 
-  return sendSuccess({ res, data });
-};
+  static async getDetails(dataSafe: DTO.GetDetailsDto) {
+    const { id, academyId } = dataSafe.params;
 
-export const restore = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.RestoreDto;
-  const { id } = params;
+    const course = await prisma.course.findFirst({
+      where: { id, academyId },
+    });
 
-  const courseExists = await prisma.course.findUnique({
-    where: { id },
-  });
+    if (!course) throw ApiError.NotFound("Course");
 
-  if (!courseExists) throw ApiError.NotFound("البرنامج غير موجود");
+    return course;
+  }
 
-  if (!courseExists.deletedAt)
-    throw ApiError.BadRequest("البرنامج بالفعل مفعل");
+  static async delete(userId: string, dataSafe: DTO.DeleteDto) {
+    const { id, academyId } = dataSafe.params;
 
-  const courseRestore = await prisma.course.update({
-    where: { id },
-    data: { deletedAt: null },
-  });
+    await validateOwnership(userId, academyId);
 
-  return sendSuccess({ res, data: courseRestore });
-};
+    const course = await prisma.course.findFirst({
+      where: { id, academyId },
+    });
 
-export const getDetailsCourse = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
-  const { id } = params;
+    if (!course) throw ApiError.NotFound("Course");
 
-  const course = await prisma.course.findUnique({
-    where: {
-      id,
-      deletedAt: null,
-    },
-  });
+    await prisma.course.delete({ where: { id } });
 
-  if (!course) throw ApiError.NotFound("البرنامج");
-
-  return sendSuccess({ res, data: course });
-};
+    return true;
+  }
+}

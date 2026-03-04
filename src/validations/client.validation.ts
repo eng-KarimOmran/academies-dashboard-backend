@@ -1,58 +1,43 @@
 import z from "zod";
-
 import {
   id,
-  name,
   limit,
   positiveNumber,
   phone,
-  paymentMethod,
+  personName,
+  clientSource,
 } from "../utils/common.validation";
 
-export const Create = {
+export const CreateClientSchema = {
   params: z.object({ academyId: id }),
   body: z.object({
-    name,
+    name: personName,
     phone,
-    courseId: id,
-    amount: positiveNumber.min(50),
-    paymentMethod,
+    clientSource,
   }),
 };
 
-export const Update = {
+export const UpdateClientSchema = {
   params: z.object({ id, academyId: id }),
   body: z.object({
-    name: name.optional(),
+    name: personName.optional(),
     phone: phone.optional(),
   }),
 };
 
-export const Delete = {
+export const DeleteClientSchema = {
   params: z.object({ id, academyId: id }),
 };
 
-export const GetAll = {
+export const GetAllClientsSchema = {
   params: z.object({ academyId: id }),
   query: z.object({
     page: positiveNumber.optional().default(1),
     limit: limit,
+    search: z.string().optional(),
   }),
 };
 
-export const Restore = {
-  params: z.object({ id, academyId: id }),
-};
-
-export const GetAllDeleted = {
-  params: z.object({ academyId: id }),
-
-  query: z.object({
-    page: positiveNumber.optional().default(1),
-    limit: limit,
-  }),
-};
-
-export const GetDetails = {
-  params: z.object({ id, academyId: id }),
+export const GetClientDetailsSchema = {
+  params: z.object({ academyId: id, id }),
 };

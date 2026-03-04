@@ -1,39 +1,34 @@
 import z from "zod";
 import {
-  Create,
-  Delete,
-  GetAll,
-  Update,
-  Restore,
-  GetAllDeleted,
-  GetDetails,
+  CreateAcademySchema,
+  UpdateAcademySchema,
+  DeleteAcademySchema,
+  GetAllAcademiesSchema,
+  GetAcademySchema,
 } from "../validations/academy.validation";
 
-export type CreateDto = {
-  body: z.infer<typeof Create.body>;
+// 1. Create Academy DTO
+export type CreateAcademyDto = {
+  body: z.infer<typeof CreateAcademySchema.body>;
 };
 
-export type UpdateDto = {
-  params: z.infer<typeof Update.params>;
-  body: z.infer<typeof Update.body>;
+// 2. Update Academy DTO
+export type UpdateAcademyDto = {
+  params: z.infer<typeof UpdateAcademySchema.params>;
+  body: z.infer<typeof UpdateAcademySchema.body>;
 };
 
-export type DeleteDto = {
-  params: z.infer<typeof Delete.params>;
+// 3. Delete Academy DTO
+export type DeleteAcademyDto = {
+  params: z.infer<typeof DeleteAcademySchema.params>;
 };
 
-export type GetAllDto = {
-  query: z.infer<typeof GetAll.query>;
+// 4. Get All Academies DTO
+export type GetAllAcademiesDto = {
+  query: z.infer<typeof GetAllAcademiesSchema.query>;
 };
 
-export type GetAllDeletedDto = {
-  query: z.infer<typeof GetAllDeleted.query>;
-};
-
-export type RestoreDto = {
-  params: z.infer<typeof Restore.params>;
-};
-
-export type GetDetailsDto = {
-  params: z.infer<typeof GetDetails.params>;
+// 5. Get Details Academy DTO
+export type GetAcademyDetailsDto = {
+  params: z.infer<typeof GetAcademySchema.params>;
 };

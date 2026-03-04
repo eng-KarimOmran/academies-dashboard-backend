@@ -1,26 +1,25 @@
-import z from "zod";
-import {
-  Create,
-  GetAll,
-  GetDetails,
-  Unsubscribe,
-} from "../validations/subscription.validation";
+import { z } from "zod";
+import * as Schema from "../validations/subscription.validation";
 
-export type CreateDto = {
-  params: z.infer<typeof Create.params>;
-  body: z.infer<typeof Create.body>;
+export type CreateSubscriptionDto = {
+  params: z.infer<typeof Schema.CreateSubscriptionSchema.params>;
+  body: z.infer<typeof Schema.CreateSubscriptionSchema.body>;
 };
 
-export type UnsubscribeDto = {
-  params: z.infer<typeof Unsubscribe.params>;
-  body:z.infer<typeof Unsubscribe.body>;
+export type GetAllSubscriptionsDto = {
+  params: z.infer<typeof Schema.GetAllSubscriptionsSchema.params>;
+  query: z.infer<typeof Schema.GetAllSubscriptionsSchema.query>;
 };
 
-export type GetAllDto = {
-  params: z.infer<typeof GetAll.params>;
-  query: z.infer<typeof GetAll.query>;
+export type GetSubscriptionDetailsDto = {
+  params: z.infer<typeof Schema.GetSubscriptionDetailsSchema.params>;
 };
 
-export type GetDetailsDto = {
-  params: z.infer<typeof GetDetails.params>;
+export type DeleteSubscriptionDto = {
+  params: z.infer<typeof Schema.DeleteSubscriptionSchema.params>;
+};
+
+export type CancelSubscriptionDto = {
+  params: z.infer<typeof Schema.CancelSubscriptionSchema.params>;
+  body: z.infer<typeof Schema.CancelSubscriptionSchema.body>;
 };

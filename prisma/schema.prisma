@@ -1,7 +1,3 @@
-// ==========================================
-// الإعدادات العامة (Configuration)
-// ==========================================
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -11,53 +7,36 @@ datasource db {
   provider = "postgresql"
 }
 
-// ==========================================
-// 1. الهوية والأمان (Authentication & Security)
-// ==========================================
-
 model User {
-  id                String  @id @default(cuid())
+  id                String     @id @default(cuid())
   name              String
-  phone             String  @unique
+  phone             String     @unique
   password          String
-  isPasswordChanged Boolean @default(false)
+  isPasswordChanged Boolean    @default(false)
+  role              Role       @default(USER)
+  status            UserStatus @default(ACTIVE)
 
-  role   Role[] // OWNER, SECRETARY, CAPTAIN
-  status UserStatus @default(ACTIVE)
-
-  // الملفات المهنية (Profiles)
   captainProfile   Captain?
   secretaryProfile Secretary?
 
-  // العلاقات
-  ownedAcademies   Academy[]            @relation("AcademyOwners")
+  academies        Academy[]            @relation("AcademyOwners")
   receivedPayments PaymentTransaction[] @relation("PaymentReceiver")
-  invalidTokens    InvalidToken[]
-  clientRegistered Client[]
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  logoutAt  DateTime?
-  deletedAt DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  logoutAt      DateTime?
+  subscriptions Subscription[]
 
-  // التعديل: لتمكين findUnique مع Soft Delete
-  @@unique([id, deletedAt])
   @@index([role])
 }
 
-model InvalidToken {
+model BlacklistedToken {
   id        String   @id @default(cuid())
   jti       String   @unique
   expiresAt DateTime
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
 
   @@index([expiresAt])
 }
-
-// ==========================================
-// 2. الأكاديميات (Academies)
-// ==========================================
 
 model Academy {
   id       String  @id @default(cuid())
@@ -66,101 +45,63 @@ model Academy {
   address  String
   instaPay String?
 
-  // التواصل الاجتماعي
   socialMediaPlatforms SocialMedia[]
+  owners               User[]               @relation("AcademyOwners")
+  courses              Course[]
+  subscriptions        Subscription[]
+  expenses             Expense[]
+  clients              Client[]
+  Lessons              Lesson[]
+  payments             PaymentTransaction[]
 
-  // الإدارة
-  owners User[] @relation("AcademyOwners")
-
-  // الأصول والعمليات
-  courses       Course[]
-  subscriptions Subscription[]
-  expenses      Expense[]
-  clients       Client[]
-  payments      PaymentTransaction[]
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  // التعديل: لتمكين findUnique مع Soft Delete
-  @@unique([id, deletedAt])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model SocialMedia {
   id        String   @id @default(cuid())
   platform  Platform
   url       String
-  academy   Academy? @relation(fields: [academyId], references: [id])
-  academyId String?
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id], onDelete: Restrict)
 
   @@unique([platform, academyId])
 }
 
-// ==========================================
-// 3. الملفات المهنية (Professional Profiles)
-// ==========================================
-
 model Secretary {
-  id        String    @id @default(cuid())
-  userId    String    @unique
-  user      User      @relation(fields: [userId], references: [id])
-  isActive  Boolean   @default(true)
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-
-  baseSalary       Float
-  bonus            Float
-  target           Int
-  processedLessons Lesson[] @relation("SecretaryLessons")
-
-  // التعديل: لتمكين findUnique مع Soft Delete
-  @@unique([id, deletedAt])
-  @@index([isActive])
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  baseSalary  Float
+  targetCount Int
+  bonusAmount Float
+  createdAt   DateTime @default(now())
 }
 
 model Captain {
   id                 String          @id @default(cuid())
   userId             String          @unique
-  user               User            @relation(fields: [userId], references: [id])
+  user               User            @relation(fields: [userId], references: [id], onDelete: Restrict)
   isActive           Boolean         @default(true)
-  deletedAt          DateTime?
-  createdAt          DateTime        @default(now())
   captainLessonPrice Float
   trainingType       TrainingSupport @default(BOTH)
+  createdAt          DateTime        @default(now())
 
   lessons Lesson[] @relation("CaptainLessons")
-  cars    Car[]    @relation("CaptainCars")
 
-  // التعديل: لتمكين findUnique مع Soft Delete
-  @@unique([id, deletedAt])
   @@index([isActive, trainingType])
 }
 
-// ==========================================
-// 4. الأصول (Fleet & Areas)
-// ==========================================
-
 model Car {
-  id          String @id @default(cuid())
-  modelName   String
-  plateNumber String @unique
+  id              String       @id @default(cuid())
+  modelName       String
+  plateNumber     String       @unique
+  gearType        Transmission
+  carSessionPrice Float        @default(0)
+  isActive        Boolean      @default(true)
+  lessons         Lesson[]
+  createdAt       DateTime     @default(now())
 
-  gearType  Transmission
-  ownerType OwnerType
-
-  captainId String?
-  captain   Captain? @relation("CaptainCars", fields: [captainId], references: [id])
-
-  carSessionPrice Float   @default(0)
-  isActive        Boolean @default(true)
-
-  lessons   Lesson[]
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
-
-  // التعديل: لتمكين findUnique مع Soft Delete
-  @@unique([id, deletedAt])
   @@index([isActive, gearType])
 }
 
@@ -169,67 +110,59 @@ model Area {
   name        String          @unique
   supportType TrainingSupport
   isActive    Boolean         @default(true)
+  lessons     Lesson[]
+  createdAt   DateTime        @default(now())
 
-  lessons   Lesson[]
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
-
-  // التعديل: لتمكين findUnique مع Soft Delete
-  @@unique([id, deletedAt])
   @@index([isActive])
   @@index([supportType])
 }
 
-// ==========================================
-// 5. العملاء والمالية (Clients & Finance)
-// ==========================================
-
 model Client {
-  id    String @id @default(cuid())
-  name  String
-  phone String
+  id           String       @id @default(cuid())
+  name         String
+  phone        String
+  clientSource ClientSource
 
   academyId String
-  academy   Academy @relation(fields: [academyId], references: [id])
+  academy   Academy @relation(fields: [academyId], references: [id], onDelete: Restrict)
 
   subscriptions Subscription[]
   lessons       Lesson[]
   payments      PaymentTransaction[]
 
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
+  createdAt DateTime @default(now())
 
-  registeredById String?
-  registeredBy   User?   @relation(fields: [registeredById], references: [id])
-
-  @@unique([id, deletedAt])
   @@unique([academyId, phone])
+  @@unique([academyId, id])
+  @@index([academyId])
   @@index([name])
   @@index([phone])
-  @@index([academyId])
 }
 
 model Subscription {
-  id       String             @id @default(cuid())
-  status   SubscriptionStatus
+  id                         String             @id @default(cuid())
+  status                     SubscriptionStatus @default(PENDING_PAYMENT)
+  priceAtBooking             Float
+  totalSessions              Int
+  sessionDurationMinutes     Int
+  trainingTypeAtRegistration Transmission       @default(AUTOMATIC)
+
   clientId String
-  client   Client             @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
   courseId String
-  course   Course @relation(fields: [courseId], references: [id])
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Restrict)
 
   academyId String
-  academy   Academy @relation(fields: [academyId], references: [id])
-
-  priceAtBooking         Float
-  totalSessions          Int
-  sessionDurationMinutes Int
+  academy   Academy @relation(fields: [academyId], references: [id], onDelete: Restrict)
 
   lessons      Lesson[]
   payments     PaymentTransaction[]
   cancellation SubscriptionCancellation?
 
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([clientId])
   @@index([academyId])
@@ -240,28 +173,27 @@ model PaymentTransaction {
   amount        Float
   paymentMethod PaymentMethod
   type          TransactionType @default(PAYMENT)
-
-  status Status @default(PENDING)
-
-  referenceNumber String? @unique
+  status        Status          @default(PENDING)
 
   clientId String
-  client   Client @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
   subscriptionId String
-  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
 
-  lessonId String?
-  lesson   Lesson? @relation(fields: [lessonId], references: [id])
+  lessonId String? @unique
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: Restrict)
 
   receiverId String
-  receiver   User   @relation("PaymentReceiver", fields: [receiverId], references: [id])
+  receiver   User   @relation("PaymentReceiver", fields: [receiverId], references: [id], onDelete: Restrict)
+
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  academy   Academy? @relation(fields: [academyId], references: [id])
-  academyId String?
+  subscriptionCancellations SubscriptionCancellation[]
 
   @@index([receiverId])
   @@index([subscriptionId])
@@ -269,73 +201,39 @@ model PaymentTransaction {
   @@index([status])
 }
 
-// ==========================================
-// 6. الحصص والكورسات (Lessons & Courses)
-// ==========================================
-
-model Course {
-  id          String @id @default(cuid())
-  name        String
-  description String
-
-  priceOriginal   Float
-  priceDiscounted Float
-
-  totalSessions     Int
-  practicalSessions Int
-
-  sessionDurationMinutes Int
-
-  trainingDetails String[]
-
-  featuredReason String?
-
-  academyId     String
-  academy       Academy        @relation(fields: [academyId], references: [id])
-  subscriptions Subscription[]
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  // التعديلات
-  @@unique([id, deletedAt])
-  @@unique([academyId, name])
-  @@index([academyId])
-  @@index([name])
-}
-
 model Lesson {
   id                 String       @id @default(cuid())
   startTime          DateTime
   endTime            DateTime
   status             LessonStatus @default(SCHEDULED)
+  transmission       Transmission
+  expectedAmount     Float?
   carSessionPrice    Float
   captainLessonPrice Float
 
   captainId String
-  captain   Captain @relation("CaptainLessons", fields: [captainId], references: [id])
+  captain   Captain @relation("CaptainLessons", fields: [captainId], references: [id], onDelete: Restrict)
 
   carId String
-  car   Car    @relation(fields: [carId], references: [id])
+  car   Car    @relation(fields: [carId], references: [id], onDelete: Restrict)
 
   clientId String
-  client   Client @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
   areaId String
-  area   Area   @relation(fields: [areaId], references: [id])
+  area   Area   @relation(fields: [areaId], references: [id], onDelete: Restrict)
 
   subscriptionId String
-  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
 
-  secretaryId String?
-  secretary   Secretary? @relation("SecretaryLessons", fields: [secretaryId], references: [id])
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id], onDelete: Restrict)
 
-  payments PaymentTransaction[]
+  paymentTransaction PaymentTransaction?
 
-  @@index([startTime])
-  @@index([captainId, startTime])
-  @@index([carId, startTime])
+  @@index([captainId, startTime, endTime])
+  @@index([carId, startTime, endTime])
+  @@index([clientId, startTime, endTime])
   @@index([status])
 }
 
@@ -343,12 +241,40 @@ model SubscriptionCancellation {
   id String @id @default(cuid())
 
   subscriptionId String       @unique
-  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
-  status         Status       @default(PENDING)
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
 
-  reason       CancelReason
-  refundAmount Float        @default(0)
-  createdAt    DateTime     @default(now())
+  reason CancelReason
+
+  refundTransactionId String?
+  refundTransaction   PaymentTransaction? @relation(fields: [refundTransactionId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+}
+
+model Course {
+  id                     String   @id @default(cuid())
+  name                   String
+  description            String
+  isActive               Boolean  @default(true)
+  priceOriginal          Float
+  priceDiscounted        Float
+  totalSessions          Int
+  practicalSessions      Int
+  sessionDurationMinutes Int
+  trainingDetails        String[]
+  featuredReason         String?
+
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id], onDelete: Restrict)
+
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([academyId, name])
+  @@unique([academyId, id])
+  @@index([name])
 }
 
 model Expense {
@@ -357,21 +283,18 @@ model Expense {
   type   ExpenseType
 
   academyId String
-  academy   Academy @relation(fields: [academyId], references: [id])
+  academy   Academy @relation(fields: [academyId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
 
   @@index([academyId, createdAt])
 }
 
-// ==========================================
-// 7. القوائم (Enums)
-// ==========================================
-
 enum Role {
   OWNER
   SECRETARY
   CAPTAIN
+  USER
 }
 
 enum Transmission {
@@ -385,16 +308,11 @@ enum TrainingSupport {
   BOTH
 }
 
-enum OwnerType {
-  ACADEMY_FLEET
-  INDIVIDUAL_CAPTAIN
-}
-
 enum LessonStatus {
   SCHEDULED
-  COMPLETE
+  COMPLETED
   CANCELED
-  NO_SHOW
+  CANCELED_CHARGED
 }
 
 enum ExpenseType {
@@ -446,9 +364,17 @@ enum Status {
 }
 
 enum SubscriptionStatus {
-  PENDING
-  ACTIVE
-  COMPLETED
-  CANCELLED
-  SUSPENDED
+  PENDING_PAYMENT
+  PAID_WAITING_BOOKING
+  BOOKED_NOT_STARTED // حجز لكن أول حصة لم تتم
+  ACTIVE // شغال
+  PAUSED // متوقف مؤقت
+  POSTPONED // مؤجل
+  COMPLETED // خلص
+  CANCELED // اتلغى
+}
+
+enum ClientSource {
+  PLATFORM
+  OFFICE
 }

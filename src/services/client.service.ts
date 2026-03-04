@@ -1,261 +1,160 @@
-import { RequestAcademy } from "./../middlewares/verifyAcademy.middleware";
-import { Response } from "express";
-import { RequestAuth } from "../middlewares/auth.middleware";
 import * as DTO from "../DTOs/client.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
-import sendSuccess from "../utils/successResponse";
-import dayjs from "dayjs";
-import { ClientUpdateInput } from "../../generated/prisma/models";
-import { Academy, Client, User } from "../../generated/prisma/client";
-import { PaginatedResponse } from "../types/types";
 import { getPaginationParams } from "../utils/Pagination";
+import { Prisma } from "../../generated/prisma/client";
+import { validateOwnership } from "../utils/validateOwnership";
 
-export const createClient = async (req: RequestAcademy, res: Response) => {
-  const { body } = req.dataSafe as DTO.CreateDto;
+export class ClientService {
+  static async create(dataSafe: DTO.CreateClientDto) {
+    const { body, params } = dataSafe;
+    const { academyId } = params;
 
-  const { name, amount, courseId, phone, paymentMethod } = body;
-
-  const academy = req.academy as Academy;
-  const user = req.user as User;
-
-  const clientExists = await prisma.client.findUnique({
-    where: {
-      academyId_phone: {
-        academyId: academy.id,
-        phone,
-      },
-    },
-  });
-
-  if (clientExists) throw ApiError.Conflict("رقم العميل مسجل بالفعل");
-
-  const course = await prisma.course.findUnique({
-    where: {
-      id: courseId,
-      deletedAt: null,
-    },
-  });
-
-  if (!course) throw ApiError.NotFound("البرنامج");
-
-  const coursePrice = course.priceDiscounted ?? course.priceOriginal;
-
-  if (amount > coursePrice)
-    throw ApiError.BadRequest("المبلغ المدفوع أكبر من المبلغ المطلوب للبرنامج");
-
-  const { client, subscription, payment } = await prisma.$transaction(
-    async (tx) => {
-      const client = await tx.client.create({
-        data: { name, phone, academyId: academy.id, registeredById: user.id },
-      });
-
-      const subscription = await tx.subscription.create({
-        data: {
-          clientId: client.id,
-          academyId: academy.id,
-          courseId: course.id,
-          sessionDurationMinutes: course.sessionDurationMinutes,
-          totalSessions: course.totalSessions,
-          priceAtBooking: coursePrice,
-          status: paymentMethod === "CASH" ? "ACTIVE" : "PENDING",
-        },
-      });
-
-      const payment = await tx.paymentTransaction.create({
-        data: {
-          clientId: client.id,
-          subscriptionId: subscription.id,
-          academyId: academy.id,
-          receiverId: user.id,
-          status: paymentMethod === "CASH" ? "COMPLETED" : "PENDING",
-          paymentMethod,
-          amount,
-        },
-      });
-      return { client, subscription, payment };
-    },
-  );
-
-  return sendSuccess({
-    res,
-    statusCode: 201,
-    data: { client, subscription, payment },
-    message: "تم اضافة العميل بنجاح",
-  });
-};
-
-export const updateClient = async (req: RequestAcademy, res: Response) => {
-  const { body, params } = req.dataSafe as DTO.UpdateDto;
-  const academy = req.academy as Academy;
-  const { id } = params;
-
-  const { name, phone } = body;
-
-  const data: ClientUpdateInput = {};
-
-  const clientExists = await prisma.client.findUnique({
-    where: { id, deletedAt: null },
-  });
-
-  if (!clientExists) throw ApiError.NotFound("العميل غير موجود");
-
-  if (phone && phone !== clientExists.phone) {
-    const client = await prisma.client.findUnique({
-      where: {
-        academyId_phone: {
-          academyId: academy.id,
-          phone,
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      include: {
+        clients: {
+          where: {
+            phone: body.phone,
+          },
         },
       },
     });
 
-    if (client) throw ApiError.Conflict("رقم العميل مسجل بالفعل");
+    if (!academy) throw ApiError.NotFound("Academy");
+    if (academy.clients[0]) throw ApiError.Conflict("Phone");
 
-    data.phone = phone;
+    const client = await prisma.client.create({
+      data: {
+        academyId,
+        name: body.name,
+        phone: body.phone,
+        clientSource: body.clientSource,
+      },
+    });
+
+    return client;
   }
 
-  if (name && name !== clientExists.name) data.name = name;
+  static async getAll(userId: string, dataSafe: DTO.GetAllClientsDto) {
+    const { query, params } = dataSafe;
+    const { academyId } = params;
+    const { limit, page, search } = query;
 
-  const clientUpdate = await prisma.client.update({
-    where: { id },
-    data,
-  });
+    await validateOwnership(userId, academyId);
 
-  return sendSuccess({
-    res,
-    data: clientUpdate,
-  });
-};
+    const where: Prisma.ClientWhereInput = { academyId };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search } },
+      ];
+    }
 
-export const deleteClient = async (req: RequestAuth, res: Response) => {
-  const { id } = (req.dataSafe as DTO.DeleteDto).params;
-
-  const clientExists = await prisma.client.findFirst({
-    where: { id, deletedAt: null },
-  });
-
-  if (!clientExists) throw ApiError.NotFound("العميل غير موجود");
-
-  const now = dayjs().toDate();
-
-  const clientDelete = await prisma.client.update({
-    where: { id },
-    data: { deletedAt: now },
-  });
-
-  return sendSuccess({ res, data: clientDelete });
-};
-
-export const getAllDeleted = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const academyId = req.params.academyId;
-
-  const { limit, page } = query;
-
-  const total = await prisma.client.count({
-    where: { deletedAt: { not: null } },
-  });
-
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
-
-  const items = await prisma.client.findMany({
-    where: {
-      deletedAt: { not: null },
-      academyId,
-    },
-    orderBy: {
-      deletedAt: "desc",
-    },
-    take: limit,
-    skip,
-  });
-
-  const data: PaginatedResponse<Client> = {
-    items,
-    pagination: {
+    const total = await prisma.client.count({ where });
+    const { safePage, skip, totalPages } = getPaginationParams({
       limit,
-      page: safePage,
+      page,
       total,
-      totalPages,
-    },
-  };
+    });
 
-  return sendSuccess({ res, data });
-};
+    const items = await prisma.client.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    });
 
-export const getAllClient = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const academyId = req.params.academyId;
+    return { items, pagination: { limit, page: safePage, total, totalPages } };
+  }
 
-  const { limit, page } = query;
-  const total = await prisma.client.count({ where: { deletedAt: null } });
+  static async getDetails(dataSafe: DTO.ClientDetailsDto) {
+    const { academyId, id } = dataSafe.params;
 
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+    });
 
-  const items = await prisma.client.findMany({
-    where: {
-      deletedAt: null,
-      academyId,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip,
-  });
+    if (!academy) throw ApiError.NotFound("Academy");
 
-  const data: PaginatedResponse<Client> = {
-    items,
-    pagination: {
-      limit,
-      page: safePage,
-      total,
-      totalPages,
-    },
-  };
+    const client = await prisma.client.findUnique({
+      where: { id },
+      include: {
+        subscriptions: {
+          include: {
+            cancellation: true,
+            payments: true,
+            lessons: true,
+            course: true,
+          },
+        },
+      },
+    });
 
-  return sendSuccess({ res, data });
-};
+    if (!client) throw ApiError.NotFound("Client");
 
-export const restore = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.RestoreDto;
-  const { id } = params;
+    const otherFiles = await prisma.client.findMany({
+      where: {
+        phone: client.phone,
+        NOT: { academyId },
+      },
+      select: {
+        id: true,
+        academy: { select: { id: true, name: true } },
+      },
+    });
 
-  const clientExists = await prisma.client.findUnique({
-    where: { id },
-  });
+    return { currentClient: client, otherFiles };
+  }
 
-  if (!clientExists) throw ApiError.NotFound("العميل غير موجود");
+  static async update(userId: string, dataSafe: DTO.UpdateClientDto) {
+    const { body, params } = dataSafe;
+    const { id, academyId } = params;
 
-  if (!clientExists.deletedAt) throw ApiError.BadRequest("العميل بالفعل مفعل");
+    await validateOwnership(userId, academyId);
 
-  const clientRestore = await prisma.client.update({
-    where: { id },
-    data: { deletedAt: null },
-  });
+    const client = await prisma.client.findUnique({
+      where: { academyId_id: { academyId, id } },
+    });
 
-  return sendSuccess({ res, data: clientRestore });
-};
+    if (!client) throw ApiError.NotFound("Client");
 
-export const getDetailsClient = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
-  const { id } = params;
+    if (body.phone && client.phone !== body.phone) {
+      const existingPhone = await prisma.client.findUnique({
+        where: {
+          academyId_phone: {
+            academyId,
+            phone: body.phone,
+          },
+        },
+      });
 
-  const client = await prisma.client.findUnique({
-    where: {
-      id,
-      deletedAt: null,
-    },
-  });
+      if (existingPhone) throw ApiError.Conflict("Phone");
+    }
 
-  if (!client) throw ApiError.NotFound("العميل");
+    const updatedClient = await prisma.client.update({
+      where: { id },
+      data: body,
+    });
 
-  return sendSuccess({ res, data: client });
-};
+    return updatedClient;
+  }
+
+  static async delete(userId: string, dataSafe: DTO.DeleteClientDto) {
+    const { id, academyId } = dataSafe.params;
+
+    await validateOwnership(userId, academyId);
+
+    const client = await prisma.client.findUnique({
+      where: { academyId_id: { academyId, id } },
+    });
+
+    if (!client) throw ApiError.NotFound("Client");
+
+    await prisma.client.delete({
+      where: { id },
+    });
+
+    return true;
+  }
+}

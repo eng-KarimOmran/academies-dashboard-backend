@@ -3,26 +3,26 @@ import validation from "../middlewares/validation.middleware";
 import auth from "../middlewares/auth.middleware";
 import { TokenType } from "../utils/Token";
 import * as Schema from "../validations/auth.validation";
-import * as Services from "../services/auth.service";
+import * as controller from "../controllers/auth.controller";
 
 const router = Router();
 
-router.post("/login", validation(Schema.LoginSchema), Services.login);
+router.post("/login", validation(Schema.LoginSchema), controller.login);
 
-router.get("/refresh", auth(TokenType.REFRESH), Services.refresh);
+router.get("/refresh", auth(TokenType.REFRESH), controller.refresh);
 
 router.post(
   "/logout",
+  auth(TokenType.REFRESH),
   validation(Schema.LogoutSchema),
-  auth(TokenType.ACCESS),
-  Services.logout,
+  controller.logout,
 );
 
 router.patch(
   "/change-password",
-  validation(Schema.changePasswordSchema),
   auth(TokenType.ACCESS),
-  Services.changePassword,
+  validation(Schema.changePasswordSchema),
+  controller.changePassword,
 );
 
 export default router;

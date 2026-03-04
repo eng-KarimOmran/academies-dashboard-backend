@@ -1,182 +1,103 @@
-import { Response } from "express";
-import { RequestAuth } from "../middlewares/auth.middleware";
 import * as DTO from "../DTOs/area.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
-import sendSuccess from "../utils/successResponse";
-import dayjs from "dayjs";
-import { AreaUpdateInput } from "../../generated/prisma/models";
-import { PaginatedResponse } from "../types/types";
-import { Area } from "../../generated/prisma/client";
 import { getPaginationParams } from "../utils/Pagination";
+import { Prisma } from "../../generated/prisma/client";
 
-export const createArea = async (req: RequestAuth, res: Response) => {
-  const { body } = req.dataSafe as DTO.CreateDto;
-  const { name, supportType } = body;
+export class AreaService {
+  static async getActive(dataSafe: DTO.FilterAreasDto) {
+    const { type } = dataSafe.query;
 
-  const areaExists = await prisma.area.findUnique({
-    where: {
-      name,
-    },
-  });
+    const where: Prisma.AreaWhereInput = {
+      isActive: true,
+    };
 
-  if (areaExists) throw ApiError.Conflict("اسم المنظقة مسجل بالفعل");
+    if (type) {
+      where.supportType = {
+        in: ["BOTH", type],
+      };
+    }
 
-  const area = await prisma.area.create({
-    data: { name, supportType },
-  });
-
-  return sendSuccess({
-    res,
-    statusCode: 201,
-    data: area,
-    message: "تم اضافة المنطقة بنجاح",
-  });
-};
-
-export const updateArea = async (req: RequestAuth, res: Response) => {
-  const { body, params } = req.dataSafe as DTO.UpdateDto;
-  const { id } = params;
-  const { name, supportType, isActive } = body;
-
-  const data: AreaUpdateInput = {};
-
-  const areaExists = await prisma.area.findUnique({
-    where: { id, deletedAt: null },
-  });
-
-  if (!areaExists) throw ApiError.NotFound("المنطقة غير موجود");
-
-  if (name && name !== areaExists.name) {
-    const nameExists = await prisma.area.findUnique({ where: { name } });
-    if (nameExists) throw ApiError.Conflict("اسم المنطقة مسجل بالفعل");
-    data.name = name;
+    return await prisma.area.findMany({
+      where,
+      orderBy: { name: "asc" },
+    });
   }
 
-  if (supportType) data.supportType = supportType;
-  if (typeof isActive === "boolean") data.isActive = isActive;
+  static async create(dataSafe: DTO.CreateDto) {
+    const { body } = dataSafe;
 
-  const areaUpdate = await prisma.area.update({
-    where: { id: areaExists.id },
-    data,
-  });
+    const areaExists = await prisma.area.findUnique({
+      where: { name: body.name },
+    });
 
-  return sendSuccess({
-    res,
-    data: areaUpdate,
-  });
-};
+    if (areaExists) throw ApiError.Conflict("Name");
 
-export const deleteArea = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.DeleteDto;
-  const { id } = params;
+    return await prisma.area.create({ data: body });
+  }
 
-  const areaExists = await prisma.area.findUnique({
-    where: { id, deletedAt: null },
-  });
+  static async getAll(dataSafe: DTO.GetAllDto) {
+    const { limit, page, search } = dataSafe.query;
 
-  if (!areaExists) throw ApiError.NotFound("المنطقة غير موجود");
+    const where: Prisma.AreaWhereInput = search
+      ? { name: { contains: search, mode: "insensitive" } }
+      : {};
 
-  const area = await prisma.area.update({
-    where: { id },
-    data: { deletedAt: dayjs().toDate() },
-  });
+    const total = await prisma.area.count({ where });
 
-  return sendSuccess({ res, data: area });
-};
-
-export const getAllDeleted = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const { limit, page } = query;
-
-  const total = await prisma.area.count({
-    where: {
-      deletedAt: { not: null },
-    },
-  });
-
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
-  const items = await prisma.area.findMany({
-    where: {
-      deletedAt: { not: null },
-    },
-    orderBy: {
-      deletedAt: "desc",
-    },
-    take: limit,
-    skip,
-  });
-
-  const data: PaginatedResponse<Area> = {
-    items,
-    pagination: {
+    const { safePage, skip, totalPages } = getPaginationParams({
       limit,
-      page: safePage,
+      page,
       total,
-      totalPages,
-    },
-  };
+    });
 
-  return sendSuccess({ res, data });
-};
+    const items = await prisma.area.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    });
 
-export const getAllArea = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const { limit, page } = query;
-  const total = await prisma.area.count({ where: { deletedAt: null } });
+    return { items, pagination: { limit, page: safePage, total, totalPages } };
+  }
 
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
+  static async getDetails(dataSafe: DTO.GetDetailsDto) {
+    const { id } = dataSafe.params;
 
-  const items = await prisma.area.findMany({
-    where: {
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip,
-  });
+    const area = await prisma.area.findUnique({ where: { id } });
+    if (!area) throw ApiError.NotFound("Area");
 
-  const data: PaginatedResponse<Area> = {
-    items,
-    pagination: {
-      limit,
-      page: safePage,
-      total,
-      totalPages,
-    },
-  };
+    return area;
+  }
 
-  return sendSuccess({ res, data });
-};
+  static async update(dataSafe: DTO.UpdateDto) {
+    const { body, params } = dataSafe;
+    const { id } = params;
+    const { name, ...restOfData } = body;
 
-export const restore = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.RestoreDto;
-  const { id } = params;
-  const area = await prisma.area.findUnique({ where: { id } });
-  if (!area) throw ApiError.NotFound("المنطقة غير موجود");
+    const area = await prisma.area.findUnique({ where: { id } });
+    if (!area) throw ApiError.NotFound("Area");
 
-  if (!area.deletedAt) throw ApiError.BadRequest("المنطقة بالفعل مفعل");
+    const updateData: Prisma.AreaUpdateInput = { ...restOfData };
 
-  const restoredArea = await prisma.area.update({
-    where: { id },
-    data: { deletedAt: null },
-  });
+    if (name && name !== area.name) {
+      const nameTaken = await prisma.area.findUnique({ where: { name } });
+      if (nameTaken) throw ApiError.Conflict("Name");
+      updateData.name = name;
+    }
 
-  return sendSuccess({ res, data: restoredArea });
-};
+    return await prisma.area.update({
+      where: { id },
+      data: updateData,
+    });
+  }
 
-export const getDetailsArea = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
-  const { id } = params;
-  const area = await prisma.area.findUnique({ where: { id, deletedAt: null } });
-  if (!area) throw ApiError.NotFound("المنطقة");
-  return sendSuccess({ res, data: area });
-};
+  static async delete(dataSafe: DTO.DeleteDto) {
+    const { id } = dataSafe.params;
+
+    const area = await prisma.area.findUnique({ where: { id } });
+    if (!area) throw ApiError.NotFound("Area");
+
+    return await prisma.area.delete({ where: { id } });
+  }
+}

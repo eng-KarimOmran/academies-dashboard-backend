@@ -1,58 +1,49 @@
 import { Router } from "express";
 import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/user.validation";
-import * as Service from "../services/user.service";
+import * as controller from "../controllers/user.controller";
 import checkRole from "../middlewares/role.middleware";
+import auth from "../middlewares/auth.middleware";
+import { TokenType } from "../utils/Token";
+import { checkPasswordChange } from "../middlewares/checkPasswordChange.middlewares";
 
 const router = Router();
 
+router.use(auth(TokenType.ACCESS), checkPasswordChange);
+
 router.get(
   "/",
-  validation(Schema.GetAll),
+  validation(Schema.GetAllUsersSchema),
   checkRole(["OWNER"]),
-  Service.getAllUser,
+  controller.getAllUser,
 );
 
 router.post(
   "/",
-  validation(Schema.Create),
+  validation(Schema.CreateUserSchema),
   checkRole(["OWNER"]),
-  Service.createUser,
+  controller.createUser,
 );
 
 router.get(
-  "/deleted",
-  validation(Schema.GetAllDeleted),
+  "/details/:id",
+  validation(Schema.GetUserDetailsSchema),
   checkRole(["OWNER"]),
-  Service.getAllDeleted,
-);
-
-router.post(
-  "/restore/:id",
-  validation(Schema.Restore),
-  checkRole(["OWNER"]),
-  Service.restore,
-);
-
-router.get(
-  "/:id",
-  validation(Schema.GetDetails),
-  checkRole(["OWNER"]),
-  Service.getDetailsUser,
+  controller.getDetailsUser,
 );
 
 router.patch(
   "/:id",
-  validation(Schema.Update),
+  validation(Schema.UpdateUserSchema),
   checkRole(["OWNER"]),
-  Service.updateUser,
+  controller.updateUser,
 );
 
 router.delete(
   "/:id",
-  validation(Schema.Delete),
+  validation(Schema.DeleteUserSchema),
   checkRole(["OWNER"]),
-  Service.deleteUser,
+  controller.deleteUser,
 );
 
 export default router;

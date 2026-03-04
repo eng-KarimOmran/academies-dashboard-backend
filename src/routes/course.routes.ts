@@ -1,64 +1,54 @@
 import { Router } from "express";
 import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/course.validation";
-import * as Service from "../services/course.service";
+import * as controller from "../controllers/course.controller";
 import checkRole from "../middlewares/role.middleware";
-import { verifyAcademy } from "../middlewares/verifyAcademy.middleware";
+import auth from "../middlewares/auth.middleware";
+import { TokenType } from "../utils/Token";
+import { checkPasswordChange } from "../middlewares/checkPasswordChange.middlewares";
 
 const router = Router({ mergeParams: true });
 
 router.get(
+  "/active",
+  validation(Schema.GetActiveSchema),
+  controller.getActiveCourses,
+);
+
+router.get(
+  "/details/:id",
+  validation(Schema.GetDetailsSchema),
+  controller.getDetailsCourse,
+);
+
+router.use(auth(TokenType.ACCESS), checkPasswordChange);
+
+router.get(
   "/",
-  validation(Schema.GetAll),
+  validation(Schema.GetAllSchema),
   checkRole(["OWNER", "SECRETARY"]),
-  Service.getAllCourse,
+  controller.getAllCourses,
 );
 
 router.post(
   "/",
-  validation(Schema.Create),
+  validation(Schema.CreateSchema),
   checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.createCourse,
-);
-
-router.get(
-  "/deleted",
-  validation(Schema.GetAllDeleted),
-  checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.getAllDeleted,
-);
-
-router.post(
-  "/restore/:id",
-  validation(Schema.Restore),
-  checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.restore,
-);
-
-router.get(
-  "/:id",
-  validation(Schema.GetDetails),
-  checkRole(["OWNER"]),
-  Service.getDetailsCourse,
+  controller.createCourse,
 );
 
 router.patch(
   "/:id",
-  validation(Schema.Update),
+  validation(Schema.UpdateSchema),
   checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.updateCourse,
+  controller.updateCourse,
 );
 
 router.delete(
   "/:id",
-  validation(Schema.Delete),
+  validation(Schema.DeleteSchema),
   checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.deleteCourse,
+  controller.deleteCourse,
 );
 
 export default router;

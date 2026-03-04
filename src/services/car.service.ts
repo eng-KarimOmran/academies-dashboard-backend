@@ -1,241 +1,141 @@
-import { Response } from "express";
-import { RequestAuth } from "../middlewares/auth.middleware";
+import { selectSafeKeys } from "./../utils/safeKeys";
 import * as DTO from "../DTOs/car.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
-import sendSuccess from "../utils/successResponse";
-import dayjs from "dayjs";
-import { CarCreateInput, CarUpdateInput } from "../../generated/prisma/models";
-import { PaginatedResponse } from "../types/types";
-import { Car } from "../../generated/prisma/client";
 import { getPaginationParams } from "../utils/Pagination";
+import { Prisma } from "../../generated/prisma/client";
+import { PaginatedResponse } from "../types/types";
 
-export const createCar = async (req: RequestAuth, res: Response) => {
-  const { body } = req.dataSafe as DTO.CreateDto;
-  const {
-    gearType,
-    ownerType,
-    plateNumber,
-    captainId,
-    carSessionPrice,
-    modelName,
-  } = body;
+export class CarService {
+  static async create(dataSafe: DTO.CreateDto) {
+    const { body } = dataSafe;
+    const { plateNumber, modelName, gearType, carSessionPrice } = body;
 
-  const carExists = await prisma.car.findUnique({
-    where: {
-      plateNumber,
-    },
-  });
+    const carExists = await prisma.car.findUnique({ where: { plateNumber } });
+    if (carExists) throw ApiError.Conflict("LicensePlate");
 
-  if (carExists) throw ApiError.Conflict("رقم السيارة مسجل بالفعل");
-
-  const data: CarCreateInput = { gearType, ownerType, plateNumber, modelName };
-
-  if (captainId) {
-    const captain = await prisma.captain.findUnique({
-      where: {
-        id: captainId,
+    const car = await prisma.car.create({
+      data: {
+        plateNumber,
+        modelName,
+        gearType,
+        carSessionPrice,
+      },
+      select: {
+        ...selectSafeKeys("car"),
       },
     });
-    if (!captain) throw ApiError.NotFound("ملف الكابتن");
-    data.captain = {
-      connect: {
-        id: captain.id,
+
+    return car;
+  }
+
+  static async update(dataSafe: DTO.UpdateDto) {
+    const { body, params } = dataSafe;
+    const { id } = params;
+    const { plateNumber, ...otherData } = body;
+
+    const carExists = await prisma.car.findUnique({ where: { id } });
+    if (!carExists) throw ApiError.NotFound("Car");
+
+    if (plateNumber && plateNumber !== carExists.plateNumber) {
+      const plateTaken = await prisma.car.findUnique({
+        where: { plateNumber },
+      });
+      if (plateTaken) throw ApiError.Conflict("LicensePlate");
+    }
+
+    const carUpdate = await prisma.car.update({
+      where: { id },
+      data: {
+        ...otherData,
+        plateNumber,
       },
-    };
-  }
-
-  if (carSessionPrice) data.carSessionPrice = carSessionPrice;
-
-  const car = await prisma.car.create({
-    data,
-  });
-
-  return sendSuccess({
-    res,
-    statusCode: 201,
-    data: car,
-    message: "تم اضافة السيارة بنجاح",
-  });
-};
-
-export const updateCar = async (req: RequestAuth, res: Response) => {
-  const { body, params } = req.dataSafe as DTO.UpdateDto;
-  const { id } = params;
-
-  const {
-    captainId,
-    carSessionPrice,
-    gearType,
-    ownerType,
-    plateNumber,
-    isActive,
-    modelName,
-  } = body;
-
-  const data: CarUpdateInput = {};
-
-  const carExists = await prisma.car.findUnique({
-    where: { id, deletedAt: null },
-  });
-
-  if (!carExists) throw ApiError.NotFound("السيارة غير موجود");
-
-  if (plateNumber && plateNumber !== carExists.plateNumber) {
-    const plateNumberExists = await prisma.car.findUnique({
-      where: { plateNumber, deletedAt: null },
-    });
-    if (plateNumberExists) throw ApiError.Conflict("رقم السيارة مسجل بالفعل");
-    data.plateNumber = plateNumber;
-  }
-
-  if (gearType) data.gearType = gearType;
-
-  if (typeof isActive === "boolean") data.isActive = isActive;
-
-  if (ownerType) data.ownerType = ownerType;
-
-  if (carSessionPrice) data.carSessionPrice = carSessionPrice;
-
-  if (captainId) {
-    const captain = await prisma.captain.findUnique({
-      where: {
-        id: captainId,
-        deletedAt: null,
+      select: {
+        ...selectSafeKeys("car"),
       },
     });
-    if (!captain) throw ApiError.NotFound("ملف الكابتن");
-    data.captain = {
-      connect: {
-        id: captain.id,
-      },
-    };
+
+    return carUpdate;
   }
 
-  if (modelName) data.modelName = modelName;
+  static async getAll(dataSafe: DTO.GetAllDto) {
+    const { query } = dataSafe;
+    const { limit, page, search } = query;
 
-  const carUpdate = await prisma.car.update({
-    where: { id: carExists.id },
-    data,
-  });
+    const where: Prisma.CarWhereInput = search
+      ? {
+          OR: [
+            { plateNumber: { contains: search, mode: "insensitive" } },
+            { modelName: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {};
 
-  return sendSuccess({
-    res,
-    data: carUpdate,
-  });
-};
+    const total = await prisma.car.count({ where });
 
-export const deleteCar = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.DeleteDto;
-  const { id } = params;
-
-  const carExists = await prisma.car.findUnique({
-    where: { id, deletedAt: null },
-  });
-
-  if (!carExists) throw ApiError.NotFound("السيارة غير موجود");
-
-  const car = await prisma.car.update({
-    where: { id },
-    data: { deletedAt: dayjs().toDate() },
-  });
-
-  return sendSuccess({ res, data: car });
-};
-
-export const getAllDeleted = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const { limit, page } = query;
-
-  const total = await prisma.car.count({
-    where: {
-      deletedAt: { not: null },
-    },
-  });
-
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
-
-  const items = await prisma.car.findMany({
-    where: {
-      deletedAt: { not: null },
-    },
-    orderBy: {
-      deletedAt: "desc",
-    },
-    take: limit,
-    skip,
-  });
-
-  const data: PaginatedResponse<Car> = {
-    items,
-    pagination: {
+    const { safePage, skip, totalPages } = getPaginationParams({
       limit,
-      page: safePage,
+      page,
       total,
-      totalPages,
-    },
-  };
+    });
 
-  return sendSuccess({ res, data });
-};
+    const items = await prisma.car.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip,
+    });
 
-export const getAllCar = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const { limit, page } = query;
-  const total = await prisma.car.count({ where: { deletedAt: null } });
+    const data: PaginatedResponse<any> = {
+      items,
+      pagination: { limit, page: safePage, total, totalPages },
+    };
 
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
+    return data;
+  }
 
-  const items = await prisma.car.findMany({
-    where: {
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip,
-  });
+  static async getDetails(dataSafe: DTO.GetDetailsDto) {
+    const { params } = dataSafe;
+    const { id } = params;
 
-  const data: PaginatedResponse<Car> = {
-    items,
-    pagination: {
-      limit,
-      page: safePage,
-      total,
-      totalPages,
-    },
-  };
+    const car = await prisma.car.findUnique({
+      where: { id },
+    });
 
-  return sendSuccess({ res, data });
-};
+    if (!car) throw ApiError.NotFound("Car");
 
-export const restore = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.RestoreDto;
-  const { id } = params;
-  const car = await prisma.car.findUnique({ where: { id } });
-  if (!car) throw ApiError.NotFound("السيارة غير موجود");
+    return car;
+  }
 
-  if (!car.deletedAt) throw ApiError.BadRequest("السيارة بالفعل مفعل");
+  static async delete(dataSafe: DTO.DeleteDto) {
+    const { params } = dataSafe;
+    const { id } = params;
 
-  const restoredCar = await prisma.car.update({
-    where: { id },
-    data: { deletedAt: null },
-  });
+    const car = await prisma.car.findUnique({ where: { id } });
+    if (!car) throw ApiError.NotFound("Car");
 
-  return sendSuccess({ res, data: restoredCar });
-};
+    await prisma.car.delete({ where: { id } });
 
-export const getDetailsCar = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
-  const { id } = params;
-  const car = await prisma.car.findUnique({ where: { id, deletedAt: null } });
-  if (!car) throw ApiError.NotFound("السيارة");
-  return sendSuccess({ res, data: car });
-};
+    return true;
+  }
+
+  static async getActiveCars(dataSafe: DTO.FilterByTypeDto) {
+    const { query } = dataSafe;
+    const { type } = query;
+
+    const where: Prisma.CarWhereInput = {
+      isActive: true,
+    };
+
+    if (type) {
+      where.gearType = type;
+    }
+
+    const cars = await prisma.car.findMany({
+      where,
+      select: selectSafeKeys("car"),
+    });
+
+    return cars;
+  }
+}

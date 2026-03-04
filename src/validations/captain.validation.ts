@@ -5,17 +5,20 @@ import {
   positiveNumber,
   trainingSupport,
   boolean,
+  phone,
+  transmission,
+  date,
 } from "../utils/common.validation";
 
-export const Create = {
+export const CreateCaptainSchema = {
   body: z.object({
-    userId: id,
+    phone: phone,
     captainLessonPrice: positiveNumber,
-    trainingType: trainingSupport,
+    trainingType: trainingSupport.default("BOTH"),
   }),
 };
 
-export const Update = {
+export const UpdateCaptainSchema = {
   params: z.object({ id }),
   body: z.object({
     captainLessonPrice: positiveNumber.optional(),
@@ -24,13 +27,33 @@ export const Update = {
   }),
 };
 
-export const GetAll = {
+export const GetAllCaptainsSchema = {
   query: z.object({
     page: positiveNumber.optional().default(1),
     limit: limit,
+    search: z.string().optional(),
   }),
 };
 
-export const GetDetails = {
+export const GetCaptainDetailsSchema = {
   params: z.object({ id }),
+};
+
+export const DeleteCaptainSchema = {
+  params: z.object({ id }),
+};
+
+export const FilterCaptainsSchema = {
+  query: z.object({
+    type: transmission.optional(),
+  }),
+};
+
+export const GetCaptainScheduleSchema = {
+  params: z.object({
+    id,
+  }),
+  query: z.object({
+    date,
+  }),
 };

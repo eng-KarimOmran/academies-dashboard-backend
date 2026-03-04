@@ -1,39 +1,25 @@
 import z from "zod";
-import {
-  Create,
-  Delete,
-  GetAll,
-  Update,
-  Restore,
-  GetAllDeleted,
-  GetDetails
-} from "../validations/area.validation";
+import * as Schema from "../validations/area.validation";
 
-export type CreateDto = {
-  body: z.infer<typeof Create.body>;
-};
+export type CreateDto = { body: z.infer<typeof Schema.CreateAreaSchema.body> };
 
 export type UpdateDto = {
-  params: z.infer<typeof Update.params>;
-  body: z.infer<typeof Update.body>;
+  params: z.infer<typeof Schema.UpdateAreaSchema.params>;
+  body: z.infer<typeof Schema.UpdateAreaSchema.body>;
 };
 
-export type DeleteDto = {
-  params: z.infer<typeof Delete.params>;
+export type FilterAreasDto = {
+  query: z.infer<typeof Schema.FilterAreasSchema.query>;
 };
 
 export type GetAllDto = {
-  query: z.infer<typeof GetAll.query>;
-};
-
-export type GetAllDeletedDto = {
-  query: z.infer<typeof GetAllDeleted.query>;
-};
-
-export type RestoreDto = {
-  params: z.infer<typeof Restore.params>;
+  query: z.infer<typeof Schema.GetAllAreasSchema.query>;
 };
 
 export type GetDetailsDto = {
-  params: z.infer<typeof GetDetails.params>;
+  params: z.infer<typeof Schema.GetAreaDetailsSchema.params>;
+};
+
+export type DeleteDto = {
+  params: z.infer<typeof Schema.DeleteAreaSchema.params>;
 };

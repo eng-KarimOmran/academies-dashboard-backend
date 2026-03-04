@@ -1,132 +1,156 @@
-import { Response } from "express";
-import { RequestAuth } from "../middlewares/auth.middleware";
+import { selectSafeKeys } from "./../utils/safeKeys";
 import * as DTO from "../DTOs/secretary.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
-import sendSuccess from "../utils/successResponse";
-import { SecretaryUpdateInput } from "../../generated/prisma/models";
-import { Secretary } from "../../generated/prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import { PaginatedResponse } from "../types/types";
 import { getPaginationParams } from "../utils/Pagination";
 
-export const createSecretary = async (req: RequestAuth, res: Response) => {
-  const { body } = req.dataSafe as DTO.CreateDto;
-  const { userId, baseSalary, bonus, target } = body;
+export class SecretaryService {
+  static async create(dataSafe: DTO.CreateDto) {
+    const { body } = dataSafe;
+    const { phone, baseSalary, bonusAmount, targetCount } = body;
 
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-  });
+    const user = await prisma.user.findUnique({
+      where: { phone },
+      select: {
+        ...selectSafeKeys("user"),
+        captainProfile: {
+          select: selectSafeKeys("captain"),
+        },
+        secretaryProfile: {
+          select: selectSafeKeys("secretary"),
+        },
+      },
+    });
 
-  if (!user) throw ApiError.NotFound("المستخدم");
+    if (!user) throw ApiError.NotFound("User");
+    if (user.secretaryProfile) throw ApiError.Conflict("SecretaryProfile");
+    if (user.captainProfile) throw ApiError.Conflict("RoleConflict");
 
-  if (!user.role.includes("SECRETARY"))
-    throw ApiError.BadRequest(
-      "يجب ان يملك المستخدم صلاحية سيكرتير لأنشاء ملف سيكرتير",
-    );
+    const secretary = await prisma.$transaction(async (tx) => {
+      if (user.role !== "OWNER") {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { role: "SECRETARY" },
+        });
+      }
 
-  const secretaryExists = await prisma.secretary.findUnique({
-    where: { userId },
-  });
+      return await tx.secretary.create({
+        data: {
+          userId: user.id,
+          baseSalary,
+          bonusAmount,
+          targetCount,
+        },
+        select: selectSafeKeys("secretary"),
+      });
+    });
 
-  if (secretaryExists)
-    throw ApiError.Conflict("المستخدم لدية ملف سكرتير بالفعل");
+    return secretary;
+  }
 
-  const secretary = await prisma.secretary.create({
-    data: {
-      userId,
-      baseSalary,
-      bonus,
-      target,
-    },
-  });
+  static async update(dataSafe: DTO.UpdateDto) {
+    const { body, params } = dataSafe;
+    const { id } = params;
+    const { baseSalary, bonusAmount, targetCount} = body;
 
-  return sendSuccess({
-    res,
-    statusCode: 201,
-    data: secretary,
-    message: "تم انشاء بروفيل السكرتير بنجاح",
-  });
-};
+    const secretaryExists = await prisma.secretary.findUnique({
+      where: { id },
+    });
+    
+    if (!secretaryExists) throw ApiError.NotFound("Secretary");
 
-export const updateSecretary = async (req: RequestAuth, res: Response) => {
-  const { body, params } = req.dataSafe as DTO.UpdateDto;
-  const { id } = params;
-  const { isActive, baseSalary, bonus, target } = body;
+    const updateData: Prisma.SecretaryUpdateInput = {};
+    if (baseSalary) updateData.baseSalary = baseSalary;
+    if (bonusAmount) updateData.bonusAmount = bonusAmount;
+    if (targetCount) updateData.targetCount = targetCount;
 
-  const data: SecretaryUpdateInput = {};
+    const secretaryUpdate = await prisma.secretary.update({
+      where: { id },
+      data: updateData,
+      select: selectSafeKeys("secretary"),
+    });
 
-  const secretaryExists = await prisma.secretary.findUnique({
-    where: { id, deletedAt: null },
-  });
+    return secretaryUpdate;
+  }
 
-  if (!secretaryExists) throw ApiError.NotFound("ملف السكرتير");
+  static async getAll(dataSafe: DTO.GetAllDto) {
+    const { query } = dataSafe;
+    const { limit, page } = query;
 
-  if (typeof isActive === "boolean") data.isActive = isActive;
+    const total = await prisma.secretary.count();
 
-  if (baseSalary) data.baseSalary = baseSalary;
-
-  if (bonus) data.bonus = bonus;
-
-  if (target) data.target = target;
-
-  const secretaryUpdate = await prisma.secretary.update({
-    where: { id: secretaryExists.id },
-    data,
-  });
-
-  return sendSuccess({
-    res,
-    data: secretaryUpdate,
-  });
-};
-
-export const getAllSecretary = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const { limit, page } = query;
-  const total = await prisma.secretary.count({ where: { deletedAt: null } });
-
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
-
-  const items = await prisma.secretary.findMany({
-    where: {
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip,
-  });
-
-  const data: PaginatedResponse<Secretary> = {
-    items,
-    pagination: {
+    const { safePage, skip, totalPages } = getPaginationParams({
       limit,
-      page:safePage,
+      page,
       total,
-      totalPages,
-    },
-  };
+    });
 
-  return sendSuccess({ res, data });
-};
+    const items = await prisma.secretary.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip,
+      select: {
+        ...selectSafeKeys("secretary"),
+        user: { select: selectSafeKeys("user") },
+      },
+    });
 
-export const getDetailsSecretary = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
-  const { id } = params;
+    const data: PaginatedResponse<any> = {
+      items,
+      pagination: {
+        limit,
+        page: safePage,
+        total,
+        totalPages,
+      },
+    };
 
-  const secretary = await prisma.secretary.findUnique({
-    where: {
-      id,
-      deletedAt: null,
-    },
-  });
+    return data;
+  }
 
-  if (!secretary) throw ApiError.NotFound("ملف السكرتير");
+  static async getDetails(dataSafe: DTO.GetDetailsDto) {
+    const { params } = dataSafe;
+    const { id } = params;
 
-  return sendSuccess({ res, data: secretary });
-};
+    const secretary = await prisma.secretary.findUnique({
+      where: { id },
+      select: {
+        ...selectSafeKeys("secretary"),
+        user: { select: selectSafeKeys("user") },
+      },
+    });
+
+    if (!secretary) throw ApiError.NotFound("Secretary");
+
+    return secretary;
+  }
+
+  static async delete(dataSafe: DTO.DeleteDto) {
+    const { params } = dataSafe;
+    const { id } = params;
+
+    const secretary = await prisma.secretary.findUnique({ where: { id } });
+    if (!secretary) throw ApiError.NotFound("Secretary");
+
+    await prisma.$transaction(async (tx) => {
+      await tx.secretary.delete({ where: { id } });
+
+      if (secretary.userId) {
+        const user = await tx.user.findUnique({
+          where: { id: secretary.userId },
+        });
+
+        if (user && user.role === "SECRETARY") {
+          await tx.user.update({
+            where: { id: secretary.userId },
+            data: { role: "USER" },
+          });
+        }
+      }
+    });
+
+    return true;
+  }
+}

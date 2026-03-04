@@ -1,64 +1,48 @@
 import { Router } from "express";
 import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/client.validation";
-import * as Service from "../services/client.service";
+import * as controller from "../controllers/client.controller";
 import checkRole from "../middlewares/role.middleware";
-import { verifyAcademy } from "../middlewares/verifyAcademy.middleware";
+import auth from "../middlewares/auth.middleware";
+import { TokenType } from "../utils/Token";
+import { checkPasswordChange } from "../middlewares/checkPasswordChange.middlewares";
 
 const router = Router({ mergeParams: true });
 
-router.get(
-  "/",
-  validation(Schema.GetAll),
-  checkRole(["OWNER", "SECRETARY"]),
-  Service.getAllClient,
-);
-
 router.post(
   "/",
-  validation(Schema.Create),
+  validation(Schema.CreateClientSchema),
+  controller.createClient,
+);
+
+router.use(auth(TokenType.ACCESS), checkPasswordChange);
+
+router.get(
+  "/",
+  validation(Schema.GetAllClientsSchema),
+  checkRole(["OWNER"]),
+  controller.getAllClients,
+);
+
+router.get(
+  "/details/:id",
+  validation(Schema.GetClientDetailsSchema),
   checkRole(["OWNER", "SECRETARY"]),
-  verifyAcademy(false),
-  Service.createClient,
-);
-
-router.get(
-  "/deleted",
-  validation(Schema.GetAllDeleted),
-  checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.getAllDeleted,
-);
-
-router.post(
-  "/restore/:id",
-  validation(Schema.Restore),
-  checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.restore,
-);
-
-router.get(
-  "/:id",
-  validation(Schema.GetDetails),
-  checkRole(["OWNER"]),
-  Service.getDetailsClient,
+  controller.getDetailsClient,
 );
 
 router.patch(
   "/:id",
-  validation(Schema.Update),
+  validation(Schema.UpdateClientSchema),
   checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.updateClient,
+  controller.updateClient,
 );
 
 router.delete(
   "/:id",
-  validation(Schema.Delete),
+  validation(Schema.DeleteClientSchema),
   checkRole(["OWNER"]),
-  verifyAcademy(),
-  Service.deleteClient,
+  controller.deleteClient,
 );
 
 export default router;

@@ -1,75 +1,59 @@
 import z from "zod";
 import {
   address,
-  dateIso,
   id,
   limit,
   phone,
   platform,
   positiveNumber,
-  string,
-  textAndNum,
+  url,
+  entityName,
 } from "../utils/common.validation";
 
-export const Create = {
+const socialMediaSchema = z.object({
+  platform,
+  url,
+});
+
+const ownerSchema = z.object({
+  phone,
+});
+
+export const CreateAcademySchema = {
   body: z.object({
-    name: textAndNum,
-    owners: z.array(z.object({ phone })),
+    name: entityName,
     phone,
     address,
-    instaPay: string.optional(),
-    socialMedia: z
-      .array(
-        z.object({
-          platform,
-          url: z.url(),
-        }),
-      )
-      .optional(),
+    instaPay: z.string().optional(),
+    owners: z.array(ownerSchema).min(1, "At least one owner phone is required"),
+    socialMedia: z.array(socialMediaSchema).min(1).optional(),
   }),
 };
 
-export const Update = {
+export const UpdateAcademySchema = {
   params: z.object({ academyId: id }),
   body: z.object({
-    name: textAndNum.optional(),
-    owners: z.array(z.object({ phone })).optional(),
+    name: entityName.optional(),
     phone: phone.optional(),
     address: address.optional(),
-    instaPay: string.optional(),
-    socialMedia: z
-      .array(
-        z.object({
-          platform,
-          url: z.url(),
-        }),
-      )
-      .optional(),
+    instaPay: z.string().optional(),
+    owners: z.array(ownerSchema).min(1).optional(),
+    socialMedia: z.array(socialMediaSchema).min(1).optional(),
   }),
 };
 
-export const Delete = {
+export const DeleteAcademySchema = {
   params: z.object({ academyId: id }),
 };
 
-export const GetAll = {
+export const GetAcademySchema = {
+  params: z.object({ academyId: id }),
+};
+
+export const GetAllAcademiesSchema = {
   query: z.object({
     page: positiveNumber.optional().default(1),
-    limit: limit,
+    limit: limit.optional().default(50),
+    search: z.string().optional(),
   }),
-};
-
-export const Restore = {
-  params: z.object({ academyId: id }),
-};
-
-export const GetAllDeleted = {
-  query: z.object({
-    page: positiveNumber.optional().default(1),
-    limit: limit,
-  }),
-};
-
-export const GetDetails = {
-  params: z.object({ academyId: id }),
 };

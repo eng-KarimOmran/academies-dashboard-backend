@@ -1,127 +1,193 @@
-import { Response } from "express";
-import { RequestAuth } from "../middlewares/auth.middleware";
-import * as DTO from "../DTOs/captain.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
-import sendSuccess from "../utils/successResponse";
-import { Captain } from "../../generated/prisma/client";
-import { CaptainUpdateInput } from "../../generated/prisma/models";
+import { Prisma } from "../../generated/prisma/client";
+import { selectSafeKeys } from "../utils/safeKeys";
 import { PaginatedResponse } from "../types/types";
 import { getPaginationParams } from "../utils/Pagination";
+import * as DTO from "../DTOs/captain.dto";
+import dayjs from "dayjs";
 
-export const createCaptain = async (req: RequestAuth, res: Response) => {
-  const { body } = req.dataSafe as DTO.CreateDto;
-  const { userId, trainingType, captainLessonPrice } = body;
+export class CaptainService {
+  static async create(dataSafe: DTO.CreateDto) {
+    const { body } = dataSafe;
+    const { phone, trainingType, captainLessonPrice } = body;
 
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-  });
+    const user = await prisma.user.findUnique({
+      where: { phone },
+      select: {
+        ...selectSafeKeys("user"),
+        captainProfile: { select: selectSafeKeys("captain") },
+        secretaryProfile: { select: selectSafeKeys("secretary") },
+      },
+    });
 
-  if (!user) throw ApiError.NotFound("المستخدم");
+    if (!user) throw ApiError.NotFound("User");
+    if (user.captainProfile) throw ApiError.Conflict("CaptainProfile");
+    if (user.secretaryProfile) throw ApiError.Conflict("RoleConflict");
 
-  if (!user.role.includes("CAPTAIN"))
-    throw ApiError.BadRequest(
-      "يجب ان يملك المستخدم صلاحية المدرب لأنشاء بروفيل مدرب",
-    );
+    return prisma.$transaction(async (tx) => {
+      if (user.role !== "OWNER") {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { role: "CAPTAIN" },
+        });
+      }
 
-  const captainExists = await prisma.captain.findUnique({ where: { userId } });
+      return tx.captain.create({
+        data: {
+          userId: user.id,
+          captainLessonPrice,
+          trainingType,
+        },
+        select: selectSafeKeys("captain"),
+      });
+    });
+  }
 
-  if (captainExists) throw ApiError.Conflict("المستخدم لدية ملف كابتن بالفعل");
+  static async update(dataSafe: DTO.UpdateDto) {
+    const { body, params } = dataSafe;
+    const { id } = params;
 
-  const captain = await prisma.captain.create({
-    data: {
-      userId,
-      captainLessonPrice,
-      trainingType,
-    },
-  });
+    const captainExists = await prisma.captain.findUnique({ where: { id } });
+    if (!captainExists) throw ApiError.NotFound("Captain");
 
-  return sendSuccess({
-    res,
-    statusCode: 201,
-    data: captain,
-    message: "تم انشاء بروفيل كابتن بنجاح",
-  });
-};
+    const updateData: Prisma.CaptainUpdateInput = {};
 
-export const updateCaptain = async (req: RequestAuth, res: Response) => {
-  const { body, params } = req.dataSafe as DTO.UpdateDto;
-  const { id } = params;
-  const { isActive, trainingType, captainLessonPrice } = body;
+    if (typeof body.isActive === "boolean") updateData.isActive = body.isActive;
 
-  const data: CaptainUpdateInput = {};
+    if (body.trainingType) updateData.trainingType = body.trainingType;
 
-  const captainExists = await prisma.captain.findUnique({
-    where: { id, deletedAt: null },
-  });
+    if (body.captainLessonPrice)
+      updateData.captainLessonPrice = body.captainLessonPrice;
 
-  if (!captainExists) throw ApiError.NotFound("ملف الكابتن");
+    return prisma.captain.update({
+      where: { id },
+      data: updateData,
+      select: selectSafeKeys("captain"),
+    });
+  }
 
-  if (typeof isActive === "boolean") data.isActive = isActive;
+  static async getAll(dataSafe: DTO.GetAllDto) {
+    const { query } = dataSafe;
+    const { limit, page } = query;
 
-  if (trainingType) data.trainingType = trainingType;
+    const total = await prisma.captain.count();
 
-  if (captainLessonPrice) data.captainLessonPrice = captainLessonPrice;
-
-  const captainUpdate = await prisma.captain.update({
-    where: { id: captainExists.id },
-    data,
-  });
-
-  return sendSuccess({
-    res,
-    data: captainUpdate,
-  });
-};
-
-export const getAllCaptain = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const { limit, page } = query;
-
-  const total = await prisma.captain.count({ where: { deletedAt: null } });
-
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
-
-  const items = await prisma.captain.findMany({
-    where: {
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip,
-  });
-
-  const data: PaginatedResponse<Captain> = {
-    items,
-    pagination: {
+    const { safePage, skip, totalPages } = getPaginationParams({
       limit,
-      page: safePage,
+      page,
       total,
-      totalPages,
-    },
-  };
+    });
 
-  return sendSuccess({ res, data });
-};
+    const items = await prisma.captain.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip,
+      select: {
+        ...selectSafeKeys("captain"),
+        user: { select: { id: true, name: true, phone: true } },
+      },
+    });
 
-export const getDetailsCaptain = async (req: RequestAuth, res: Response) => {
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
-  const { id } = params;
+    const data: PaginatedResponse<any> = {
+      items,
+      pagination: { limit, page: safePage, total, totalPages },
+    };
 
-  const captain = await prisma.captain.findUnique({
-    where: {
-      id,
-      deletedAt: null,
-    },
-  });
+    return data;
+  }
 
-  if (!captain) throw ApiError.NotFound("ملف الكابتن");
+  static async getDetails(dataSafe: DTO.GetDetailsDto) {
+    const { params } = dataSafe;
+    const { id } = params;
 
-  return sendSuccess({ res, data: captain });
-};
+    const captain = await prisma.captain.findUnique({
+      where: { id },
+      select: {
+        ...selectSafeKeys("captain"),
+        user: { select: selectSafeKeys("user") },
+      },
+    });
+
+    if (!captain) throw ApiError.NotFound("Captain");
+
+    return captain;
+  }
+
+  static async delete(dataSafe: DTO.DeleteDto) {
+    const { params } = dataSafe;
+    const { id } = params;
+
+    const captain = await prisma.captain.findUnique({ where: { id } });
+    if (!captain) throw ApiError.NotFound("Captain");
+
+    await prisma.$transaction(async (tx) => {
+      await tx.captain.delete({ where: { id } });
+
+      if (captain.userId) {
+        const user = await tx.user.findUnique({
+          where: { id: captain.userId },
+        });
+
+        if (user && user.role !== "OWNER") {
+          await tx.user.update({
+            where: { id: captain.userId },
+            data: { role: "USER" },
+          });
+        }
+      }
+    });
+
+    return true;
+  }
+
+  static async getActive(dataSafe: DTO.FilterCaptainsDto) {
+    const { query } = dataSafe;
+    const { type } = query;
+
+    const where: Prisma.CaptainWhereInput = {
+      isActive: true,
+    };
+
+    if (type) {
+      where.trainingType = { in: ["BOTH", type] };
+    }
+
+    return prisma.captain.findMany({
+      where,
+      select: {
+        ...selectSafeKeys("captain"),
+        user: { select: { id: true, name: true, phone: true } },
+      },
+    });
+  }
+
+  static async getCaptainSchedule(dataSafe: DTO.GetCaptainScheduleDto) {
+    const { params, query } = dataSafe;
+    const { id } = params;
+    const { date } = query;
+
+    const startOfDay = dayjs(date).startOf("day").toDate();
+    const endOfDay = dayjs(date).endOf("day").toDate();
+
+    const lessons = await prisma.lesson.findMany({
+      where: {
+        captainId: id,
+        startTime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      orderBy: {
+        startTime: "asc",
+      },
+      include: {
+        client: { select: { name: true, phone: true } },
+        car: { select: { plateNumber: true, modelName: true } },
+        area: { select: { name: true } },
+      },
+    });
+
+    return lessons;
+  }
+}

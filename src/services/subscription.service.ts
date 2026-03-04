@@ -1,227 +1,227 @@
-import { RequestAcademy } from "./../middlewares/verifyAcademy.middleware";
-import { Response } from "express";
-import { RequestAuth } from "../middlewares/auth.middleware";
 import * as DTO from "../DTOs/subscription.dto";
 import prisma from "../lib/prisma";
 import ApiError from "../utils/ApiError";
-import sendSuccess from "../utils/successResponse";
-import {
-  Academy,
-  PaymentTransaction,
-  Subscription,
-  SubscriptionCancellation,
-  User,
-} from "../../generated/prisma/client";
-import { PaginatedResponse } from "../types/types";
 import { getPaginationParams } from "../utils/Pagination";
+import { Prisma } from "../../generated/prisma/client";
+import { validateOwnership } from "../utils/validateOwnership";
+import { calculatePaymentSummary } from "../utils/calculatePayment";
 
-export const createSubscription = async (
-  req: RequestAcademy,
-  res: Response,
-) => {
-  const { body } = req.dataSafe as DTO.CreateDto;
+export class SubscriptionService {
+  static async create(userId: string, dataSafe: DTO.CreateSubscriptionDto) {
+    const { body, params } = dataSafe;
+    const { academyId } = params;
+    const { phone, courseId, trainingTypeAtRegistration } = body;
 
-  const { amount, courseId, paymentMethod, phone } = body;
-
-  const academy = req.academy as Academy;
-  const user = req.user as User;
-
-  const clientExists = await prisma.client.findUnique({
-    where: {
-      academyId_phone: {
-        academyId: academy.id,
-        phone,
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      include: {
+        courses: {
+          where: { id: courseId },
+        },
+        clients: {
+          where: {
+            phone,
+          },
+          include: {
+            subscriptions: { select: { id: true } },
+          },
+        },
       },
-    },
-  });
+    });
 
-  if (!clientExists) throw ApiError.NotFound("رقم العميل");
+    if (!academy) throw ApiError.NotFound("Academy");
 
-  const course = await prisma.course.findUnique({
-    where: {
-      id: courseId,
-      deletedAt: null,
-    },
-  });
+    if (!academy.courses[0]) throw ApiError.NotFound("Course");
 
-  if (!course) throw ApiError.NotFound("البرنامج");
+    if (!academy.clients[0]) throw ApiError.NotFound("Client");
 
-  const coursePrice = course.priceDiscounted ?? course.priceOriginal;
+    const client = academy.clients[0];
+    const course = academy.courses[0];
 
-
-  if (amount > coursePrice)
-    throw ApiError.BadRequest("المبلغ المدفوع أكبر من المبلغ المطلوب للبرنامج");
-
-  const { subscription, payment } = await prisma.$transaction(async (tx) => {
-    const subscription = await tx.subscription.create({
+    const subscription = await prisma.subscription.create({
       data: {
-        clientId: clientExists.id,
-        academyId: academy.id,
+        clientId: client.id,
         courseId: course.id,
+        academyId: academy.id,
+        trainingTypeAtRegistration,
+        priceAtBooking: course.priceDiscounted ?? course.priceOriginal,
         sessionDurationMinutes: course.sessionDurationMinutes,
         totalSessions: course.totalSessions,
-        priceAtBooking: coursePrice,
-        status: paymentMethod === "CASH" ? "ACTIVE" : "PENDING",
+        createdById: client.subscriptions.length === 0 ? userId : null,
+      },
+      include: {
+        client: { select: { id: true, name: true, phone: true } },
       },
     });
 
-    const payment = await tx.paymentTransaction.create({
-      data: {
-        clientId: clientExists.id,
-        subscriptionId: subscription.id,
-        academyId: academy.id,
-        receiverId: user.id,
-        status: paymentMethod === "CASH" ? "COMPLETED" : "PENDING",
-        paymentMethod,
-        amount,
-      },
-    });
+    return subscription;
+  }
 
-    return { subscription, payment };
-  });
+  static async getAll(userId: string, dataSafe: DTO.GetAllSubscriptionsDto) {
+    const { query, params } = dataSafe;
+    const { academyId } = params;
+    const { limit, page, search } = query;
 
-  return sendSuccess({
-    res,
-    statusCode: 201,
-    data: { subscription, payment },
-    message: "تم تسجيل الأشتراك بنجاح",
-  });
-};
+    await validateOwnership(userId, academyId);
 
-export const Unsubscribe = async (req: RequestAuth, res: Response) => {
-  const { body, params } = req.dataSafe as DTO.UnsubscribeDto;
+    const where: Prisma.SubscriptionWhereInput = { academyId };
 
-  const { id } = params;
-  const { reason, refundAmount, paymentMethod } = body;
-
-  const user = req.user as User;
-
-  const subscriptionExists = await prisma.subscription.findUnique({
-    where: { id },
-    include: {
-      payments: {
-        where: {
-          status: "COMPLETED",
-        },
-      },
-    },
-  });
-
-  if (!subscriptionExists) throw ApiError.NotFound("الاشتراك غير موجود");
-
-  const totalPaid =
-    subscriptionExists.payments.reduce((total, payment) => {
-      if (payment.type === "PAYMENT") {
-        return total + payment.amount;
-      }
-
-      if (payment.type === "REFUND") {
-        return total - payment.amount;
-      }
-
-      return total;
-    }, 0) ?? 0;
-
-  if (totalPaid < refundAmount)
-    throw ApiError.BadRequest(
-      `لا يمكن استرداد مبلغ اكبر من اجمالي المبلغ المدفوع:${totalPaid}ج.م فقط`,
-    );
-
-  const { result } = await prisma.$transaction(async (tx) => {
-    const result: {
-      payment: PaymentTransaction | null;
-      unsubscribe: SubscriptionCancellation | null;
-    } = {
-      payment: null,
-      unsubscribe: null,
-    };
-    if (refundAmount) {
-      const payment = await tx.paymentTransaction.create({
-        data: {
-          academyId: subscriptionExists.academyId,
-          clientId: subscriptionExists.clientId,
-          subscriptionId: subscriptionExists.id,
-          amount: refundAmount,
-          paymentMethod,
-          receiverId: user.id,
-          type: "REFUND",
-          status: "PENDING",
-        },
-      });
-      result.payment = payment;
+    if (search) {
+      where.OR = [
+        { client: { name: { contains: search, mode: "insensitive" } } },
+        { client: { phone: { contains: search } } },
+      ];
     }
 
-    const unsubscribe = await tx.subscriptionCancellation.create({
-      data: {
-        subscriptionId: subscriptionExists.id,
-        reason,
-        refundAmount,
+    const total = await prisma.subscription.count({ where });
+
+    const { safePage, skip, totalPages } = getPaginationParams({
+      limit,
+      page,
+      total,
+    });
+
+    const items = await prisma.subscription.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        client: { select: { id: true, name: true, phone: true } },
+        course: { select: { id: true, name: true } },
+        cancellation: true,
       },
     });
 
-    result.unsubscribe = unsubscribe;
+    return { items, pagination: { limit, page: safePage, total, totalPages } };
+  }
 
-    await tx.subscription.update({
-      where: { id: subscriptionExists.id },
-      data: { status: "CANCELLED" },
+  static async getDetails(dataSafe: DTO.GetSubscriptionDetailsDto) {
+    const { id, academyId } = dataSafe.params;
+
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      include: {
+        subscriptions: {
+          where: { id },
+          include: {
+            client: true,
+            course: true,
+            lessons: true,
+            cancellation: true,
+          },
+        },
+      },
     });
 
-    return { result };
-  });
+    if (!academy) throw ApiError.NotFound("Academy");
+    if (!academy.subscriptions[0]) throw ApiError.NotFound("Subscription");
 
-  return sendSuccess({ res, data: result });
-};
+    return academy.subscriptions[0];
+  }
 
-export const getAllSubscription = async (req: RequestAuth, res: Response) => {
-  const { query } = req.dataSafe as DTO.GetAllDto;
-  const academyId = req.params.academyId;
+  static async delete(userId: string, dataSafe: DTO.DeleteSubscriptionDto) {
+    const { id, academyId } = dataSafe.params;
 
-  const { limit, page } = query;
+    await validateOwnership(userId, academyId);
 
-  const total = await prisma.subscription.count({ where: { academyId } });
+    const subscription = await prisma.subscription.findUnique({
+      where: { id },
+    });
 
-  const { safePage, skip, totalPages } = getPaginationParams({
-    limit,
-    page,
-    total,
-  });
+    if (!subscription) {
+      throw ApiError.NotFound("Subscription");
+    }
 
-  const items = await prisma.subscription.findMany({
-    where: {
-      academyId,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip,
-  });
+    await prisma.subscription.delete({
+      where: { id },
+    });
 
-  const data: PaginatedResponse<Subscription> = {
-    items,
-    pagination: {
-      limit,
-      page: safePage,
-      total,
-      totalPages,
-    },
-  };
+    return true;
+  }
 
-  return sendSuccess({ res, data });
-};
+  static async cancel(userId: string, dataSafe: DTO.CancelSubscriptionDto) {
+    const { body, params } = dataSafe;
+    const { academyId, subscriptionId } = params;
+    const { reason, refundAmount, paymentMethod } = body;
 
-export const getDetailsSubscription = async (
-  req: RequestAuth,
-  res: Response,
-) => {
-  const { params } = req.dataSafe as DTO.GetDetailsDto;
-  const { id } = params;
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      include: {
+        cancellation: true,
+        payments: true,
+      },
+    });
 
-  const subscription = await prisma.subscription.findUnique({
-    where: {
-      id,
-    },
-  });
+    if (!subscription) {
+      throw ApiError.NotFound("Subscription");
+    }
 
-  if (!subscription) throw ApiError.NotFound("الاشتراك");
+    if (subscription.cancellation) {
+      throw ApiError.Conflict("SubscriptionAlreadyCancelled");
+    }
 
-  return sendSuccess({ res, data: subscription });
-};
+    const { totalPaid } = calculatePaymentSummary(
+      subscription.payments,
+      subscription.priceAtBooking,
+    );
+
+    if (refundAmount && refundAmount > totalPaid)
+      throw ApiError.BadRequest(
+        `Cannot refund more than the total amount paid (${totalPaid}).`,
+      );
+
+    if (refundAmount && !paymentMethod) {
+      throw ApiError.ValidationError("Payment method required");
+    }
+
+    const updatedSubscription = await prisma.$transaction(async (tx) => {
+      let refundTransactionId: null | string = null;
+      if (refundAmount && paymentMethod) {
+        const refundTransaction = await tx.paymentTransaction.create({
+          data: {
+            amount: refundAmount,
+            paymentMethod: paymentMethod,
+            type: "REFUND",
+            status: "COMPLETED",
+            clientId: subscription.clientId,
+            subscriptionId: subscription.id,
+            academyId: academyId,
+            receiverId: userId,
+          },
+        });
+        refundTransactionId = refundTransaction.id;
+      }
+
+      await tx.subscriptionCancellation.create({
+        data: {
+          subscriptionId: subscription.id,
+          reason: reason,
+          refundTransactionId: refundTransactionId ?? null,
+        },
+      });
+
+      await tx.lesson.updateMany({
+        where: { subscriptionId: subscription.id, status: "SCHEDULED" },
+        data: { status: "CANCELED" },
+      });
+
+      return await tx.subscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: "CANCELED",
+          lessons: {
+            updateMany: {
+              where: { status: "SCHEDULED" },
+              data: {
+                status: "CANCELED",
+              },
+            },
+          },
+        },
+      });
+    });
+
+    return updatedSubscription;
+  }
+}

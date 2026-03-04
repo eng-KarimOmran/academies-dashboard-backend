@@ -1,58 +1,56 @@
 import { Router } from "express";
 import validation from "../middlewares/validation.middleware";
 import * as Schema from "../validations/car.validation";
-import * as Service from "../services/car.service";
+import * as controller from "../controllers/car.controller";
 import checkRole from "../middlewares/role.middleware";
+import auth from "../middlewares/auth.middleware";
+import { TokenType } from "../utils/Token";
+import { checkPasswordChange } from "../middlewares/checkPasswordChange.middlewares";
 
 const router = Router();
 
+router.use(auth(TokenType.ACCESS), checkPasswordChange);
+
 router.get(
   "/",
-  validation(Schema.GetAll),
+  validation(Schema.GetAllCarsSchema),
+  checkRole(["OWNER"]),
+  controller.getAllCars,
+);
+
+router.post(
+  "/",
+  validation(Schema.CreateCarSchema),
+  checkRole(["OWNER"]),
+  controller.createCar,
+);
+
+router.get(
+  "/active",
+  validation(Schema.FilterByTypeSchema),
   checkRole(["OWNER", "SECRETARY"]),
-  Service.getAllCar,
-);
-
-router.post(
-  "/",
-  validation(Schema.Create),
-  checkRole(["OWNER"]),
-  Service.createCar,
+  controller.getActiveCars,
 );
 
 router.get(
-  "/deleted",
-  validation(Schema.GetAllDeleted),
+  "/details/:id",
+  validation(Schema.GetCarDetailsSchema),
   checkRole(["OWNER"]),
-  Service.getAllDeleted,
-);
-
-router.post(
-  "/restore/:id",
-  validation(Schema.Restore),
-  checkRole(["OWNER"]),
-  Service.restore,
-);
-
-router.get(
-  "/:id",
-  validation(Schema.GetDetails),
-  checkRole(["OWNER"]),
-  Service.getDetailsCar,
+  controller.getDetailsCar,
 );
 
 router.patch(
   "/:id",
-  validation(Schema.Update),
+  validation(Schema.UpdateCarSchema),
   checkRole(["OWNER"]),
-  Service.updateCar,
+  controller.updateCar,
 );
 
 router.delete(
   "/:id",
-  validation(Schema.Delete),
+  validation(Schema.DeleteCarSchema),
   checkRole(["OWNER"]),
-  Service.deleteCar,
+  controller.deleteCar,
 );
 
 export default router;

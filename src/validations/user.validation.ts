@@ -1,58 +1,49 @@
 import z from "zod";
-
 import {
   id,
-  name,
+  personName,
   password,
   phone,
   userRole,
-  statusUser,
+  userStatus,
   limit,
   positiveNumber,
+  boolean,
 } from "../utils/common.validation";
 
-export const Create = {
+export const CreateUserSchema = {
   body: z.object({
-    name,
+    name: personName,
     phone,
     password,
-    role: userRole,
+    status: userStatus.optional(),
   }),
 };
 
-export const Update = {
+export const UpdateUserSchema = {
   params: z.object({ id }),
   body: z.object({
-    name: name.optional(),
+    name: personName.optional(),
     phone: phone.optional(),
     password: password.optional(),
     role: userRole.optional(),
-    status: statusUser.optional(),
+    status: userStatus.optional(),
+    isPasswordChanged: boolean.optional(),
   }),
 };
 
-export const Delete = {
+export const DeleteUserSchema = {
   params: z.object({ id }),
 };
 
-export const GetAll = {
+export const GetUserDetailsSchema = {
+  params: z.object({ id }),
+};
+
+export const GetAllUsersSchema = {
   query: z.object({
     page: positiveNumber.optional().default(1),
-    limit: limit,
+    limit: limit.optional().default(50),
+    search: z.string().optional(),
   }),
-};
-
-export const Restore = {
-  params: z.object({ id }),
-};
-
-export const GetAllDeleted = {
-  query: z.object({
-    page: positiveNumber.optional().default(1),
-    limit: limit,
-  }),
-};
-
-export const GetDetails = {
-  params: z.object({ id }),
 };

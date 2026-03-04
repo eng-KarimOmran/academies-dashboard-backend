@@ -9,7 +9,6 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import globalErrorHandler from "./middlewares/errors.middleware";
 import router from "./routes/index.routes";
-import "./jobs/cleanup";
 
 const app: Application = express();
 

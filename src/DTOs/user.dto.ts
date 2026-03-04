@@ -1,39 +1,34 @@
 import z from "zod";
 import {
-  Create,
-  Delete,
-  GetAll,
-  Update,
-  Restore,
-  GetAllDeleted,
-  GetDetails,
+  CreateUserSchema,
+  UpdateUserSchema,
+  DeleteUserSchema,
+  GetAllUsersSchema,
+  GetUserSchema,
 } from "../validations/user.validation";
 
-export type CreateDto = {
-  body: z.infer<typeof Create.body>;
+// 1. Create User DTO
+export type CreateUserDto = {
+  body: z.infer<typeof CreateUserSchema.body>;
 };
 
-export type UpdateDto = {
-  params: z.infer<typeof Update.params>;
-  body: z.infer<typeof Update.body>;
+// 2. Update User DTO
+export type UpdateUserDto = {
+  params: z.infer<typeof UpdateUserSchema.params>;
+  body: z.infer<typeof UpdateUserSchema.body>;
 };
 
-export type DeleteDto = {
-  params: z.infer<typeof Delete.params>;
+// 3. Delete User DTO
+export type DeleteUserDto = {
+  params: z.infer<typeof DeleteUserSchema.params>;
 };
 
-export type GetAllDto = {
-  query: z.infer<typeof GetAll.query>;
+// 4. Get All Users DTO (Query Params)
+export type GetAllUsersDto = {
+  query: z.infer<typeof GetAllUsersSchema.query>;
 };
 
-export type GetAllDeletedDto = {
-  query: z.infer<typeof GetAllDeleted.query>;
-};
-
-export type RestoreDto = {
-  params: z.infer<typeof Restore.params>;
-};
-
-export type GetDetailsDto = {
-  params: z.infer<typeof GetDetails.params>;
+// 5. Get User Details DTO
+export type GetUserDetailsDto = {
+  params: z.infer<typeof GetUserSchema.params>;
 };
